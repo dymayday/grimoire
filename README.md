@@ -12,9 +12,15 @@ Copy or symlink a skill into a directory your agent already scans. Invoke it by 
 
 The run is Review, Verify, Adjudicate. Findings that fail shape, calibration, source rules, or the quality gate go into `qualityRejected`. Claims with no usable verdict go into `noVerdict`. The judge only sees Review+Verify cases. You get every bucket back, including empty ones. Do not use this for ordinary `/review` or for writing workflows.
 
+![Ultracode: independent surveyors reconcile conflicting observations into one confirmed map](assets/ultracode-mapmakers-of-uncertainty.png)
+
 **prewalk.** A frontier model (`Sol`, `Fable` or `grok-4.6`) reads the code, writes 7-11 todos with `todo_write`, and lands the first edit. Then you switch to a cheap model with `/model luna` or `/model terra` and say continue. The live TUI conversation is the handoff. Do not `spawn_subagent` for execution. Do not write a handoff markdown file. Skip it for sprawling multi-domain work and for a one-line fix. Headless `grok -p` cannot switch models mid-run.
 
+![Prewalk: an architect establishes the first proven span, then a builder continues the same structure](assets/prewalk-architect-to-builder.png)
+
 **codex-imagegen.** Generate or edit an image through Codex CLI `$imagegen` with ChatGPT or Codex login. No `OPENAI_API_KEY`. Keep `$imagegen` in single quotes so the shell does not expand it.
+
+![Codex Imagegen: a command-line chamber opens onto a finished canvas](assets/codex-imagegen-terminal-to-canvas.png)
 
 ## Install
 
