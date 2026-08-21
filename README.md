@@ -1,3 +1,5 @@
+![Grimoire repository header](assets/grimoire-header.png)
+
 # Grimoire
 
 Agent skills I wrote down. Each skill is a `SKILL.md`. Ultracode also ships the Rhai workflow it launches.
@@ -16,9 +18,11 @@ The run is Review, Verify, Adjudicate. Findings that fail shape, calibration, so
 
 ## Install
 
-There is no remote on this repo yet. From the working tree:
+Clone [github.com/dymayday/grimoire](https://github.com/dymayday/grimoire), then symlink:
 
 ```bash
+git clone https://github.com/dymayday/grimoire.git
+cd grimoire
 ln -s "$(pwd)/skills/ultracode" ~/.grok/skills/ultracode
 ln -s "$(pwd)/skills/prewalk" ~/.grok/skills/prewalk
 ln -s "$(pwd)/skills/codex-imagegen" ~/.grok/skills/codex-imagegen
