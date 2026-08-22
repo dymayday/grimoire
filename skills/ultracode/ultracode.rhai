@@ -139,13 +139,24 @@ fn label_slug(value) {
     let out = "";
     if type_of(value) == "string" {
         for ch in value {
-            if out.len() < 32 {
+            if out.len() < 40 {
+                let text = ch.to_string();
                 if id_char_allowed(ch) {
-                    out += ch.to_string();
-                } else if out != "" && out.sub_string(out.len() - 1, 1) != "-" {
+                    out += text;
+                } else if text == " " {
+                    if out != "" && out.sub_string(out.len() - 1, 1) != " " {
+                        out += " ";
+                    }
+                } else if out != "" && out.sub_string(out.len() - 1, 1) != " " && out.sub_string(out.len() - 1, 1) != "-" {
                     out += "-";
                 }
             }
+        }
+    }
+    if out != "" {
+        let last = out.sub_string(out.len() - 1, 1);
+        if last == " " || last == "-" {
+            out = out.sub_string(0, out.len() - 1);
         }
     }
     if out == "" { "claim" } else { out }
@@ -158,6 +169,18 @@ fn string_in(list, value) {
         }
     }
     found
+}
+fn next_label(used, base) {
+    let label = base;
+    let n = 2;
+    while string_in(used, label) {
+        label = base + " " + n.to_string();
+        n += 1;
+    }
+    label
+}
+fn named_label(used, role, name) {
+    next_label(used, role + ": " + label_slug(name))
 }
 fn add_unique(list, value) {
     if !string_in(list, value) { list.push(value); }
@@ -382,11 +405,26 @@ fn parallel_capped(jobs) {
     out
 }
 
+fn with_model(job, model) {
+    if trimmed(model) != "" {
+        job.model = model;
+    }
+    job
+}
+
 let brief = ();
 let dimensions = ();
+let agent_model = "";
+let agent_effort = "";
 if type_of(args) == "map" {
     if type_of(args.brief) == "map" { brief = args.brief; }
     if type_of(args.dimensions) == "array" { dimensions = args.dimensions; }
+    if type_of(args.model) == "string" { agent_model = trimmed(args.model); }
+    if type_of(args.effort) == "string" { agent_effort = trimmed(args.effort); }
+}
+let effort_instruction = "";
+if agent_effort != "" {
+    effort_instruction = " Use reasoning effort " + agent_effort + " for this task.";
 }
 if type_of(brief) != "map" {
     pause("verification", "Pass args.brief as a structured review brief. Start a new run with corrected args.");
@@ -471,6 +509,7 @@ let brief_js = json_encode(brief);
 let artifacts_js = json_encode(artifacts);
 
 phase("Review");
+let used_labels = [];
 let review_jobs = [];
 for dimension in dimensions {
     let reviewer_index = 1;
@@ -491,12 +530,19 @@ for dimension in dimensions {
         prompt += "Severity: critical defeats the objective or creates unacceptable harm; high is a likely material failure; medium is important with a viable workaround; low has limited impact. ";
         prompt += "Confidence: high has direct specific evidence with no material contradiction; medium has specific evidence with a material uncertainty; low is plausible but weak or incomplete. ";
         prompt += "Do not report findings below the brief minimum_severity. An empty list is valid only with a concrete inspection account.";
-        review_jobs.push(#{
+        prompt += effort_instruction;
+        let review_name = dimension.name;
+        if dimension.reviewer_count > 1 {
+            review_name = dimension.name + " R" + reviewer_index.to_string();
+        }
+        let review_label = named_label(used_labels, "review", review_name);
+        used_labels.push(review_label);
+        review_jobs.push(with_model(#{
             prompt: prompt,
-            label: "review:" + dimension.id + ":R" + reviewer_index.to_string(),
+            label: review_label,
             capability_mode: "read-only",
             output_schema: findings_schema,
-        });
+        }, agent_model));
         reviewer_index += 1;
     }
 }
@@ -624,14 +670,18 @@ for finding in findings {
     prompt += json_encode(objective);
     prompt += ". Use only the supplied JSON; do not inspect artifacts or judge whether the claim is true. ";
     prompt += "Accept only when the claim is inside focus and outside every exclusion; lensFit specifically establishes that relationship; severity matches impact; materialityLevel matches how the claim affects the objective; and confidence matches the specificity, completeness, and uncertainty of the stated evidence. ";
-    prompt += "Return accepted and a concrete reason. Finding JSON: ";
+    prompt += "Return accepted and a concrete reason.";
+    prompt += effort_instruction;
+    prompt += " Finding JSON: ";
     prompt += finding_js;
-    quality_gate_jobs.push(#{
+    let gate_label = named_label(used_labels, "gate", finding.title);
+    used_labels.push(gate_label);
+    quality_gate_jobs.push(with_model(#{
         prompt: prompt,
-        label: "review:gate:" + finding.id,
+        label: gate_label,
         capability_mode: "read-only",
         output_schema: quality_gate_schema,
-    });
+    }, agent_model));
 }
 let quality_gate_results = parallel_capped(quality_gate_jobs);
 let gated_findings = [];
@@ -685,13 +735,15 @@ if dedupe_attempted {
     let prompt = "Consolidate semantically equivalent review findings before verification. Use only the supplied JSON; do not inspect artifacts and do not judge truth. ";
     prompt += "Group duplicates that make the same falsifiable claim despite different wording or lenses. Keep distinct claims separate. ";
     prompt += "Every finding id must appear exactly once across groups. Order each memberIds list by the findings' input order, and order groups by their earliest member. ";
-    prompt += "Return member IDs only; do not rewrite titles or claims. Findings JSON: ";
+    prompt += "Return member IDs only; do not rewrite titles or claims.";
+    prompt += effort_instruction;
+    prompt += " Findings JSON: ";
     prompt += findings_js;
-    let dedupe_result = agent(prompt, #{
+    let dedupe_result = agent(prompt, with_model(#{
         label: "review:deduplicate",
         capability_mode: "read-only",
         output_schema: dedupe_schema,
-    });
+    }, agent_model));
     if slot_failed(dedupe_result) || type_of(dedupe_result.output) != "map" || !groups_valid(dedupe_result.output.groups, findings) {
         dedupe_errors.push("deduplication failed or did not partition every finding exactly once");
     } else {
@@ -748,12 +800,15 @@ for item in verification_items {
     prompt += "For research, register new inspected sources in discoveredSources before citing them; other artifact kinds must return an empty discoveredSources array. ";
     prompt += "Set real=true only if the canonical claim survives falsification. Set real=false when evidence refutes it. ";
     prompt += "Evidence requires exact registered {ref, location} references and reason must explain how they prove or refute the claim. Put remaining uncertainty in uncertainty.";
-    verify_jobs.push(#{
+    prompt += effort_instruction;
+    let verify_label = named_label(used_labels, "verify", item.title);
+    used_labels.push(verify_label);
+    verify_jobs.push(with_model(#{
         prompt: prompt,
-        label: "verify:" + item.id + ":" + label_slug(item.title),
+        label: verify_label,
         capability_mode: "read-only",
         output_schema: verdict_schema,
-    });
+    }, agent_model));
 }
 let verdicts = parallel_capped(verify_jobs);
 
@@ -836,13 +891,15 @@ judge_prompt += json_encode(objective);
 judge_prompt += ". Do not inspect artifacts, discover sources, or invent findings. ";
 judge_prompt += "Use each member's lens contract, severity, materiality, evidence, and the verifier record. ";
 judge_prompt += "Keep a claim only when it is material to the objective and survives verification. Drop refuted, unsupported, duplicate, or immaterial claims. ";
-judge_prompt += "If verifierReal=false, drop it. Every case id must appear exactly once in kept or dropped with a concrete nonempty why. Cases JSON: ";
+judge_prompt += "If verifierReal=false, drop it. Every case id must appear exactly once in kept or dropped with a concrete nonempty why.";
+judge_prompt += effort_instruction;
+judge_prompt += " Cases JSON: ";
 judge_prompt += cases_js;
-let judgment = agent(judge_prompt, #{
+let judgment = agent(judge_prompt, with_model(#{
     label: "adjudicate",
     capability_mode: "read-only",
     output_schema: judgment_schema,
-});
+}, agent_model));
 
 let kept = [];
 let dropped = [];

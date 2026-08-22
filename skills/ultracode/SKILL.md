@@ -244,17 +244,21 @@ is unlikely.
 Verification is **one verifier per distinct claim**, not per file. Several
 claims may use the same source, and one claim may cite multiple sources.
 
-Verifier labels are bounded and stable:
+Inner workflow labels are display titles, not finding IDs. Stable IDs stay
+inside the structured packets. Each inner agent uses a bounded title:
 
 ```text
-verify:<claim-id>:<short-normalized-title>
+review: failure modes
+gate: Cutover window too short
+verify: Cutover window too short
 ```
 
-Keep full lens names and titles in the structured packet. Give the verifier the
-brief, source registry, canonical claim, all member findings, lens contracts,
-calibration, and source refs. It independently tries to falsify the claim and
-returns auditable evidence. Missing, malformed, or unauthorized evidence enters
-`noVerdict` with the attempted output.
+A duplicated lens appends `R2`. Duplicate titles append `2`, `3`, and so on.
+Keep full lens names, finding IDs, and titles in the structured packet. Give
+the verifier the brief, source registry, canonical claim, all member findings,
+lens contracts, calibration, and source refs. It independently tries to
+falsify the claim and returns auditable evidence. Missing, malformed, or
+unauthorized evidence enters `noVerdict` with the attempted output.
 
 The judge sees only Review+Verify cases. It does not inspect artifacts or add
 sources. Unknown IDs, duplicate IDs, empty rationales, malformed output, and
@@ -302,7 +306,7 @@ Do not save a workflow projection unless the user asks.
 - Complete Review coverage and quality-gate accounting.
 - Conditional semantic deduplication with provenance preservation.
 - Adaptive duplicate reviewers only for marked high-risk lenses.
-- Claim-centered verification with bounded meaningful labels.
+- Claim-centered verification with bounded title-based inner labels.
 - Registered and auditable evidence through Review and Verify.
 - Complete evidence packets in final results.
 - Fail-closed verification and adjudication accounting.
