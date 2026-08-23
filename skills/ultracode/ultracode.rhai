@@ -56,7 +56,7 @@ let findings_schema = #{
     "properties": #{
         "inspection": #{ "type": "string", "minLength": 1 },
         "discoveredSources": #{ "type": "array", "maxItems": 8, "items": discovered_source_schema },
-        "findings": #{ "type": "array", "maxItems": 8, "items": finding_schema },
+        "findings": #{ "type": "array", "items": finding_schema },
     },
 };
 let dedupe_group_schema = #{
@@ -387,24 +387,6 @@ fn summarize(kept, dropped, unjudged, no_verdict, quality_rejected, failed_revie
         + failed_reviewers.len().to_string() + " failedReviewers, "
         + judge_errors.len().to_string() + " judgeErrors"
 }
-fn parallel_capped(jobs) {
-    let out = [];
-    let start = 0;
-    while start < jobs.len() {
-        let end = start + 8;
-        if end > jobs.len() { end = jobs.len(); }
-        let batch = [];
-        let index = start;
-        while index < end {
-            batch.push(jobs[index]);
-            index += 1;
-        }
-        for result in parallel(batch) { out.push(result); }
-        start = end;
-    }
-    out
-}
-
 fn with_model(job, model) {
     if trimmed(model) != "" {
         job.model = model;
@@ -435,6 +417,7 @@ let artifact_kind = brief.artifact_kind;
 let inspection = brief.inspection;
 let artifacts = brief.artifacts;
 let minimum_severity = brief.minimum_severity;
+let max_findings_per_reviewer = if brief.max_findings_per_reviewer == () { 11 } else { brief.max_findings_per_reviewer };
 let dedupe_threshold = brief.dedupe_threshold;
 if trimmed(objective) == "" || trimmed(target) == "" || trimmed(inspection) == "" {
     pause("verification", "brief needs nonempty objective, target, and inspection strings. Start a new run.");
@@ -444,6 +427,9 @@ if !string_in(["file", "directory", "diff", "text", "mixed", "research"], artifa
 }
 if !severity_valid(minimum_severity) {
     pause("verification", "brief.minimum_severity must be critical, high, medium, or low. Start a new run.");
+}
+if type_of(max_findings_per_reviewer) != "i64" || max_findings_per_reviewer < 1 {
+    pause("verification", "brief.max_findings_per_reviewer must be a positive integer. Start a new run.");
 }
 if type_of(dedupe_threshold) != "i64" || dedupe_threshold < 2 {
     pause("verification", "brief.dedupe_threshold must be an integer of at least 2. Start a new run.");
@@ -525,7 +511,9 @@ for dimension in dimensions {
         prompt += reviewer_index.to_string();
         prompt += ". Follow the dimension focus and exclusions. Inspect only its scope_refs under the brief inspection contract. ";
         prompt += "For research, register each new source in discoveredSources before citing it; prefer primary sources. Other artifact kinds must return discoveredSources as an empty array. ";
-        prompt += "Return a concrete inspection account and at most 8 material findings. Each finding needs title, precise claim, inspected evidence, impact, materialityLevel, materiality explanation, severity, confidence, lensFit, and auditable {ref, location} sources. ";
+        prompt += "Return a concrete inspection account and at most ";
+        prompt += max_findings_per_reviewer.to_string();
+        prompt += " material findings. Each finding needs title, precise claim, inspected evidence, impact, materialityLevel, materiality explanation, severity, confidence, lensFit, and auditable {ref, location} sources. ";
         prompt += "Materiality: objective-blocking prevents the objective; material materially changes the decision or outcome; significant needs action but does not decide the objective alone; limited has contained effect. ";
         prompt += "Severity: critical defeats the objective or creates unacceptable harm; high is a likely material failure; medium is important with a viable workaround; low has limited impact. ";
         prompt += "Confidence: high has direct specific evidence with no material contradiction; medium has specific evidence with a material uncertainty; low is plausible but weak or incomplete. ";
@@ -546,7 +534,7 @@ for dimension in dimensions {
         reviewer_index += 1;
     }
 }
-let review_results = parallel_capped(review_jobs);
+let review_results = parallel(review_jobs);
 
 let findings = [];
 let pending_findings = [];
@@ -601,7 +589,15 @@ for dimension in dimensions {
                     && materiality_valid(finding.materialityLevel) && trimmed(finding.materiality) != ""
                     && severity_valid(finding.severity) && confidence_valid(finding.confidence)
                     && trimmed(finding.lensFit) != "" && meets_threshold(finding.severity, minimum_severity);
-                if basic_finding_valid {
+                if finding_index > max_findings_per_reviewer {
+                    quality_rejected.push(#{
+                        id: id,
+                        dimensionId: dimension.id,
+                        reviewerId: reviewer_id,
+                        entry: finding,
+                        reason: "finding exceeds brief.max_findings_per_reviewer",
+                    });
+                } else if basic_finding_valid {
                     pending_findings.push(#{
                         id: id,
                         dimensionId: dimension.id,
@@ -683,7 +679,7 @@ for finding in findings {
         output_schema: quality_gate_schema,
     }, agent_model));
 }
-let quality_gate_results = parallel_capped(quality_gate_jobs);
+let quality_gate_results = parallel(quality_gate_jobs);
 let gated_findings = [];
 let gate_index = 0;
 for finding in findings {
@@ -810,7 +806,7 @@ for item in verification_items {
         output_schema: verdict_schema,
     }, agent_model));
 }
-let verdicts = parallel_capped(verify_jobs);
+let verdicts = parallel(verify_jobs);
 
 let cases = [];
 let no_verdict = [];

@@ -35,6 +35,7 @@ Pass one structured `brief` instead of independent target fields:
   "artifact_kind": "<file|directory|diff|text|mixed|research>",
   "inspection": "<artifact-specific inspection contract>",
   "minimum_severity": "medium",
+  "max_findings_per_reviewer": 11,
   "dedupe_threshold": 8,
   "artifacts": [
     {
@@ -96,6 +97,11 @@ Confidence is evidence quality, not severity:
 - `high`: direct specific evidence with no material contradiction.
 - `medium`: specific evidence with a material uncertainty.
 - `low`: plausible but weak or incomplete evidence.
+
+Default `max_findings_per_reviewer` to `11`. Use `21` for exhaustive or
+high-risk reviews when the extra quality-gate and verification work is
+justified. Any positive integer is valid when the calculated agent budget stays
+within the workflow limit. Excess findings enter `qualityRejected`.
 
 `dedupe_threshold` controls when semantic consolidation runs. Default to `8`.
 Below the threshold, findings proceed directly to verification.
@@ -277,12 +283,14 @@ Read `ultracode.rhai`, then call `workflow` with:
 }
 ```
 
-1. Before each workflow call, compute the worst-case agent budget:
-   `reviewers + 2*reviewers*8 + 2`, plus `1` when
-   `reviewers*8 >= dedupe_threshold`. `reviewers` is the sum of all
-   `reviewer_count` values. Pass this as `agent_budget`; it covers reviewers,
-   one quality gate and one verifier per maximum finding, optional dedupe, and
-   the judge. Live concurrency remains capped at eight.
+1. Before each workflow call, let `reviewers` be the sum of all
+   `reviewer_count` values and compute the worst-case `agent_budget` as
+   `reviewers + 2*reviewers*max_findings_per_reviewer + 2`, plus `1` when
+   `reviewers*max_findings_per_reviewer >= dedupe_threshold`. The result must
+   not exceed the workflow tool's maximum. It covers reviewers, one quality
+   gate and one verifier per possible finding, optional dedupe, and the judge.
+   Submit each phase as one `parallel()` panel; the host keeps at most eight
+   agents live and backfills open slots from the queue.
 2. Smoke-check with `validate_only: true`, representative args, and that budget.
 3. Fix only validation failures. The canned result is not a live review.
 4. Launch the same script without `validate_only` and with identical args and budget.
@@ -310,4 +318,4 @@ Do not save a workflow projection unless the user asks.
 - Registered and auditable evidence through Review and Verify.
 - Complete evidence packets in final results.
 - Fail-closed verification and adjudication accounting.
-- Parallel panels in batches of at most eight agents.
+- Full parallel panels with a host-managed rolling queue of at most eight live agents.
