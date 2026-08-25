@@ -61,7 +61,7 @@ ID: 1–24 letters, numbers, or hyphens, unique within the brief.
 | `role` | Why the artifact is present: `subject`, `requirement`, `evidence`, etc. |
 
 Use one entry for one target and multiple entries for mixed reviews. The
-manifest is the allowed source set; agents cannot silently expand it.
+manifest is the allowed source set. Extra sources follow Source registry.
 
 ### Artifact kinds and inspection
 
@@ -203,19 +203,21 @@ Before Verify, the workflow enforces:
 - Each finding includes title, precise claim, inspected evidence, impact,
   calibrated materiality level plus explanation, severity, confidence,
   lens-fit explanation, and exact sources.
-- Deterministic checks reject malformed, below-threshold, or unauthorized-source
-  findings. A separate read-only quality gate classifies each remaining finding
-  against the lens focus and exclusions and checks severity, materiality, and
-  confidence calibration before Verify. Gate failures and
-  rejections enter `qualityRejected` with the original entry and reason.
+- Deterministic checks reject malformed or below-threshold findings and
+  apply the Source registry allow-list. A separate read-only quality gate
+  classifies each remaining finding against the lens focus and exclusions
+  and checks severity, materiality, and confidence calibration before
+  Verify. Gate failures and rejections enter `qualityRejected` with the
+  original entry and reason.
 - `coverage` records expected reviewers, successful reviewers, accepted
   findings, and complete/partial/failed status for every dimension.
 - Successful zero-finding reviews retain their inspection accounts.
 
 ### Source registry
 
-The initial `sourceRegistry` is the artifact manifest. For `research`, agents
-may add sources through `discoveredSources` only when each entry has:
+The initial `sourceRegistry` is the artifact manifest. Agents may add a
+source only through `discoveredSources`, and only when each extra source
+has:
 
 ```json
 {
@@ -228,9 +230,17 @@ may add sources through `discoveredSources` only when each entry has:
 }
 ```
 
-Findings and verifier evidence may cite supplied sources or registered research
-sources. Other artifact kinds cannot add sources. Invalid source registrations
-enter `sourceErrors`.
+`reason` is the justified exception for a source not already in the
+manifest. Research uses this for ordinary discovery. Other artifact kinds
+use it only when the extra source is necessary. Prefer primary sources.
+Register the source before citing it.
+
+Findings and verifier evidence may cite supplied sources or registered
+extra sources. Invalid registrations and unauthorized citations enter
+`sourceErrors`. Strip unauthorized citations; keep the claim if any
+allow-listed or registered source remains. If none remain, the finding
+enters `qualityRejected` (Review) or `noVerdict` (Verify) with the
+original entry and reason. The allow-list must not silently drop a claim.
 
 ### Conditional deduplication
 
@@ -263,8 +273,9 @@ A duplicated lens appends `R2`. Duplicate titles append `2`, `3`, and so on.
 Keep full lens names, finding IDs, and titles in the structured packet. Give
 the verifier the brief, source registry, canonical claim, all member findings,
 lens contracts, calibration, and source refs. It independently tries to
-falsify the claim and returns auditable evidence. Missing, malformed, or
-unauthorized evidence enters `noVerdict` with the attempted output.
+falsify the claim and returns auditable evidence. Extra sources follow
+Source registry. Missing or malformed evidence, or evidence with no
+remaining registered source, enters `noVerdict` with the attempted output.
 
 The judge sees only Review+Verify cases. It does not inspect artifacts or add
 sources. Unknown IDs, duplicate IDs, empty rationales, malformed output, and
@@ -315,7 +326,9 @@ Do not save a workflow projection unless the user asks.
 - Conditional semantic deduplication with provenance preservation.
 - Adaptive duplicate reviewers only for marked high-risk lenses.
 - Claim-centered verification with bounded title-based inner labels.
-- Registered and auditable evidence through Review and Verify.
+- Registered and auditable evidence through Review and Verify. Extra
+  sources require a justified exception. The allow-list does not silently
+  drop claims.
 - Complete evidence packets in final results.
 - Fail-closed verification and adjudication accounting.
 - Full parallel panels with a host-managed rolling queue of at most eight live agents.

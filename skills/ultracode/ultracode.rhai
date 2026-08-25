@@ -196,25 +196,22 @@ fn registry_source(registry, ref) {
 fn source_ref_allowed(ref, allowed_refs, registry, blocked_refs) {
     !string_in(blocked_refs, ref) && string_in(allowed_refs, ref) && registry_source(registry, ref) != ()
 }
-fn sources_allowed(sources, allowed_refs, registry, blocked_refs) {
-    if type_of(sources) != "array" || sources.len() == 0 {
-        false
-    } else {
-        let ok = true;
+fn partition_sources(sources, allowed_refs, registry, blocked_refs) {
+    let kept = [];
+    let rejected = [];
+    if type_of(sources) == "array" {
         for source in sources {
-            if type_of(source) != "map" {
-                ok = false;
-            } else if trimmed(source.ref) == "" || trimmed(source.location) == "" {
-                ok = false;
-            } else if !source_ref_allowed(source.ref, allowed_refs, registry, blocked_refs) {
-                ok = false;
+            if type_of(source) == "map" && trimmed(source.ref) != "" && trimmed(source.location) != "" && source_ref_allowed(source.ref, allowed_refs, registry, blocked_refs) {
+                kept.push(source);
+            } else {
+                rejected.push(source);
             }
         }
-        ok
     }
+    #{ kept: kept, rejected: rejected }
 }
-fn discovered_source_valid(source, artifact_kind) {
-    if artifact_kind != "research" || type_of(source) != "map" {
+fn discovered_source_valid(source) {
+    if type_of(source) != "map" {
         false
     } else if !id_valid(source.ref) || trimmed(source.kind) == "" || trimmed(source.locator) == "" {
         false
@@ -224,21 +221,22 @@ fn discovered_source_valid(source, artifact_kind) {
         string_in(["primary", "secondary", "other"], source.sourceType)
     }
 }
-fn registration_status(registry, source, artifact_kind) {
-    if !discovered_source_valid(source, artifact_kind) {
+fn registration_status(registry, source) {
+    if !discovered_source_valid(source) {
         "invalid"
     } else {
         let existing = registry_source(registry, source.ref);
         if existing == () {
             "new"
-        } else if existing.provenance == "discovered" && existing.kind == source.kind && existing.locator == source.locator {
+        } else if existing.provenance != "supplied" && existing.kind == source.kind && existing.locator == source.locator {
             "identical"
         } else {
             "conflict"
         }
     }
 }
-fn register_discovered(registry, source) {
+fn register_discovered(registry, source, artifact_kind) {
+    let provenance = if artifact_kind == "research" { "discovered" } else { "exception" };
     registry.push(#{
         ref: source.ref,
         kind: source.kind,
@@ -247,7 +245,7 @@ fn register_discovered(registry, source) {
         sourceType: source.sourceType,
         reason: source.reason,
         inspected: source.inspected,
-        provenance: "discovered",
+        provenance: provenance,
     });
     registry
 }
@@ -269,32 +267,7 @@ fn severity_rank(value) {
 fn meets_threshold(severity, minimum) {
     severity_rank(severity) >= severity_rank(minimum)
 }
-fn finding_valid(finding, allowed_refs, registry, blocked_refs, minimum_severity) {
-    if type_of(finding) != "map" {
-        false
-    } else if trimmed(finding.title) == "" || trimmed(finding.claim) == "" {
-        false
-    } else if trimmed(finding.evidence) == "" || trimmed(finding.impact) == "" {
-        false
-    } else if !materiality_valid(finding.materialityLevel) || trimmed(finding.materiality) == "" || trimmed(finding.lensFit) == "" {
-        false
-    } else if !severity_valid(finding.severity) || !confidence_valid(finding.confidence) {
-        false
-    } else if !meets_threshold(finding.severity, minimum_severity) {
-        false
-    } else {
-        sources_allowed(finding.sources, allowed_refs, registry, blocked_refs)
-    }
-}
-fn verdict_valid(verdict, allowed_refs, registry, blocked_refs) {
-    if type_of(verdict) != "map" {
-        false
-    } else if type_of(verdict.real) != "bool" || trimmed(verdict.reason) == "" {
-        false
-    } else {
-        sources_allowed(verdict.evidence, allowed_refs, registry, blocked_refs)
-    }
-}
+
 fn slot_failed(result) {
     if result == () { true }
     else if result.success != true { true }
@@ -510,7 +483,7 @@ for dimension in dimensions {
         prompt += ". Reviewer ordinal: ";
         prompt += reviewer_index.to_string();
         prompt += ". Follow the dimension focus and exclusions. Inspect only its scope_refs under the brief inspection contract. ";
-        prompt += "For research, register each new source in discoveredSources before citing it; prefer primary sources. Other artifact kinds must return discoveredSources as an empty array. ";
+        prompt += "Register each extra source in discoveredSources before citing it. reason is the justified exception for a source not already in the manifest. Research uses this for ordinary discovery. Other artifact kinds use it only when the extra source is necessary. Prefer primary sources. ";
         prompt += "Return a concrete inspection account and at most ";
         prompt += max_findings_per_reviewer.to_string();
         prompt += " material findings. Each finding needs title, precise claim, inspected evidence, impact, materialityLevel, materiality explanation, severity, confidence, lensFit, and auditable {ref, location} sources. ";
@@ -559,9 +532,9 @@ for dimension in dimensions {
             successful_reviewers += 1;
             let reviewer_discovered_refs = [];
             for discovered in result.output.discoveredSources {
-                let status = registration_status(registry, discovered, artifact_kind);
+                let status = registration_status(registry, discovered);
                 if status == "new" {
-                    registry = register_discovered(registry, discovered);
+                    registry = register_discovered(registry, discovered, artifact_kind);
                     reviewer_discovered_refs = add_unique(reviewer_discovered_refs, discovered.ref);
                 } else if status == "identical" {
                     reviewer_discovered_refs = add_unique(reviewer_discovered_refs, discovered.ref);
@@ -569,7 +542,7 @@ for dimension in dimensions {
                 } else if status == "conflict" {
                     source_errors.push(#{ reviewerId: reviewer_id, entry: discovered, reason: "discovered source ref conflicts with the registered locator" });
                 } else {
-                    source_errors.push(#{ reviewerId: reviewer_id, entry: discovered, reason: "invalid or unauthorized discovered source" });
+                    source_errors.push(#{ reviewerId: reviewer_id, entry: discovered, reason: "invalid extra source: missing justified exception or malformed registration" });
                 }
             }
             inspections.push(#{
@@ -627,7 +600,7 @@ for dimension in dimensions {
                         dimensionId: dimension.id,
                         reviewerId: reviewer_id,
                         entry: finding,
-                        reason: "finding failed shape, calibration, severity threshold, or source-registry checks",
+                        reason: "finding failed shape, calibration, or severity threshold",
                     });
                 }
                 finding_index += 1;
@@ -652,10 +625,15 @@ for dimension in dimensions {
 for finding in pending_findings {
     let reviewer_allowed_refs = finding.scopeRefs;
     for ref in finding.reviewerDiscoveredRefs { reviewer_allowed_refs = add_unique(reviewer_allowed_refs, ref); }
-    if finding_valid(finding, reviewer_allowed_refs, registry, [], minimum_severity) {
-        findings.push(finding);
+    let partitioned = partition_sources(finding.sources, reviewer_allowed_refs, registry, []);
+    for rejected in partitioned.rejected {
+        source_errors.push(#{ reviewerId: finding.reviewerId, findingId: finding.id, entry: rejected, reason: "unauthorized source citation without a registered justified exception" });
+    }
+    if partitioned.kept.len() == 0 {
+        quality_rejected.push(#{ id: finding.id, dimensionId: finding.dimensionId, reviewerId: finding.reviewerId, entry: finding, reason: "finding had no remaining allow-listed or registered source after stripping unauthorized citations" });
     } else {
-        quality_rejected.push(#{ id: finding.id, dimensionId: finding.dimensionId, reviewerId: finding.reviewerId, entry: finding, reason: "finding failed final source-registry authorization after all Review registrations" });
+        finding.sources = partitioned.kept;
+        findings.push(finding);
     }
 }
 
@@ -793,7 +771,7 @@ for item in verification_items {
     prompt += ". Verification item JSON: ";
     prompt += item_js;
     prompt += ". Inspect independently under the brief inspection contract. Preserve every member's lens, exclusions, and scope. ";
-    prompt += "For research, register new inspected sources in discoveredSources before citing them; other artifact kinds must return an empty discoveredSources array. ";
+    prompt += "Register each extra source in discoveredSources before citing it. reason is the justified exception for a source not already in the manifest. Research uses this for ordinary discovery. Other artifact kinds use it only when the extra source is necessary. Prefer primary sources. ";
     prompt += "Set real=true only if the canonical claim survives falsification. Set real=false when evidence refutes it. ";
     prompt += "Evidence requires exact registered {ref, location} references and reason must explain how they prove or refute the claim. Put remaining uncertainty in uncertainty.";
     prompt += effort_instruction;
@@ -810,30 +788,25 @@ let verdicts = parallel(verify_jobs);
 
 let cases = [];
 let no_verdict = [];
-let verifier_source_failures = [];
 let verifier_discovered_refs = [];
 let item_index = 0;
 for item in verification_items {
     let verdict = if item_index < verdicts.len() { verdicts[item_index] } else { () };
     if !slot_failed(verdict) && type_of(verdict.output) == "map" && type_of(verdict.output.discoveredSources) == "array" {
-        let verifier_source_error = false;
         for discovered in verdict.output.discoveredSources {
-            let status = registration_status(registry, discovered, artifact_kind);
+            let status = registration_status(registry, discovered);
             if status == "new" {
-                registry = register_discovered(registry, discovered);
+                registry = register_discovered(registry, discovered, artifact_kind);
                 verifier_discovered_refs.push(#{ verifierId: item.id, ref: discovered.ref });
             } else if status == "identical" {
                 verifier_discovered_refs.push(#{ verifierId: item.id, ref: discovered.ref });
                 source_errors.push(#{ verifierId: item.id, entry: discovered, reason: "reused an identical discovered source registration" });
             } else if status == "conflict" {
-                verifier_source_error = true;
                 source_errors.push(#{ verifierId: item.id, entry: discovered, reason: "discovered source ref conflicts with the registered locator" });
             } else {
-                verifier_source_error = true;
-                source_errors.push(#{ verifierId: item.id, entry: discovered, reason: "invalid or unauthorized verifier-discovered source" });
+                source_errors.push(#{ verifierId: item.id, entry: discovered, reason: "invalid extra source: missing justified exception or malformed registration" });
             }
         }
-        if verifier_source_error { verifier_source_failures.push(item.id); }
     }
     item_index += 1;
 }
@@ -844,15 +817,19 @@ for item in verification_items {
         no_verdict.push(#{ item: item, verifierOutput: (), reason: "verifier failed or returned no output" });
     } else if type_of(verdict.output) != "map" || type_of(verdict.output.discoveredSources) != "array" {
         no_verdict.push(#{ item: item, verifierOutput: verdict.output, reason: "verifier output was malformed" });
+    } else if type_of(verdict.output.real) != "bool" || trimmed(verdict.output.reason) == "" {
+        no_verdict.push(#{ item: item, verifierOutput: verdict.output, reason: "verifier output was malformed" });
     } else {
         let verifier_allowed_refs = item.allowedRefs;
-        if artifact_kind == "research" {
-            for registered in verifier_discovered_refs {
-                if registered.verifierId == item.id { verifier_allowed_refs = add_unique(verifier_allowed_refs, registered.ref); }
-            }
+        for registered in verifier_discovered_refs {
+            if registered.verifierId == item.id { verifier_allowed_refs = add_unique(verifier_allowed_refs, registered.ref); }
         }
-        if string_in(verifier_source_failures, item.id) || !verdict_valid(verdict.output, verifier_allowed_refs, registry, []) {
-            no_verdict.push(#{ item: item, verifierOutput: verdict.output, reason: "invalid, conflicted, or out-of-scope verifier evidence" });
+        let partitioned = partition_sources(verdict.output.evidence, verifier_allowed_refs, registry, []);
+        for rejected in partitioned.rejected {
+            source_errors.push(#{ verifierId: item.id, entry: rejected, reason: "unauthorized source citation without a registered justified exception" });
+        }
+        if partitioned.kept.len() == 0 {
+            no_verdict.push(#{ item: item, verifierOutput: verdict.output, reason: "verifier evidence had no remaining allow-listed or registered source after stripping unauthorized citations" });
         } else {
             cases.push(#{
                 id: item.id,
@@ -862,7 +839,7 @@ for item in verification_items {
                 allowedRefs: verifier_allowed_refs,
                 verifierReal: verdict.output.real,
                 verifierReason: verdict.output.reason,
-                verifierEvidence: verdict.output.evidence,
+                verifierEvidence: partitioned.kept,
                 verifierUncertainty: verdict.output.uncertainty,
                 verifierDiscoveredSources: verdict.output.discoveredSources,
             });
