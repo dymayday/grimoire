@@ -290,9 +290,15 @@ Read `ultracode.rhai`, then call `workflow` with:
   "brief": { "...": "the structured brief from section 1" },
   "dimensions": [
     { "...": "3-5 lens contracts from section 2" }
-  ]
+  ],
+  "model": "<this session's current model id>",
+  "effort": "<this session's current reasoning effort>"
 }
 ```
+
+`model` and `effort` are required spawn overrides. Copy them from this parent session. Do not omit them, and do not invent a different pair. If this session has no reasoning effort, pass `"none"`. Allowed effort tokens: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
+
+Every inner agent is `general-purpose` with `capability_mode: "read-only"`. Workflow `agent()` cannot set role or persona. Do not add `agent_type`, `persona`, or `role` to the jobs. Explicit `model` and `effort` beat role, persona, and parent inherit.
 
 1. Before each workflow call, let `reviewers` be the sum of all
    `reviewer_count` values and compute the worst-case `agent_budget` as
@@ -332,3 +338,4 @@ Do not save a workflow projection unless the user asks.
 - Complete evidence packets in final results.
 - Fail-closed verification and adjudication accounting.
 - Full parallel panels with a host-managed rolling queue of at most eight live agents.
+- Every inner agent is spawned with this session's `model` and `effort` as explicit overrides. Role and persona are not set; workflow jobs cannot carry them.

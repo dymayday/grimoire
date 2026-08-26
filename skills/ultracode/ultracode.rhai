@@ -360,10 +360,9 @@ fn summarize(kept, dropped, unjudged, no_verdict, quality_rejected, failed_revie
         + failed_reviewers.len().to_string() + " failedReviewers, "
         + judge_errors.len().to_string() + " judgeErrors"
 }
-fn with_model(job, model) {
-    if trimmed(model) != "" {
-        job.model = model;
-    }
+fn with_runtime(job, model, effort) {
+    job.model = model;
+    job.effort = effort;
     job
 }
 
@@ -377,12 +376,14 @@ if type_of(args) == "map" {
     if type_of(args.model) == "string" { agent_model = trimmed(args.model); }
     if type_of(args.effort) == "string" { agent_effort = trimmed(args.effort); }
 }
-let effort_instruction = "";
-if agent_effort != "" {
-    effort_instruction = " Use reasoning effort " + agent_effort + " for this task.";
-}
 if type_of(brief) != "map" {
     pause("verification", "Pass args.brief as a structured review brief. Start a new run with corrected args.");
+}
+if agent_model == "" {
+    pause("verification", "Pass args.model as this session's current model id. Start a new run with corrected args.");
+}
+if !string_in(["none", "minimal", "low", "medium", "high", "xhigh", "max"], agent_effort) {
+    pause("verification", "Pass args.effort as this session's current reasoning effort (none, minimal, low, medium, high, xhigh, or max). Start a new run with corrected args.");
 }
 let objective = brief.objective;
 let target = brief.target;
@@ -491,19 +492,18 @@ for dimension in dimensions {
         prompt += "Severity: critical defeats the objective or creates unacceptable harm; high is a likely material failure; medium is important with a viable workaround; low has limited impact. ";
         prompt += "Confidence: high has direct specific evidence with no material contradiction; medium has specific evidence with a material uncertainty; low is plausible but weak or incomplete. ";
         prompt += "Do not report findings below the brief minimum_severity. An empty list is valid only with a concrete inspection account.";
-        prompt += effort_instruction;
         let review_name = dimension.name;
         if dimension.reviewer_count > 1 {
             review_name = dimension.name + " R" + reviewer_index.to_string();
         }
         let review_label = named_label(used_labels, "review", review_name);
         used_labels.push(review_label);
-        review_jobs.push(with_model(#{
+        review_jobs.push(with_runtime(#{
             prompt: prompt,
             label: review_label,
             capability_mode: "read-only",
             output_schema: findings_schema,
-        }, agent_model));
+        }, agent_model, agent_effort));
         reviewer_index += 1;
     }
 }
@@ -645,17 +645,16 @@ for finding in findings {
     prompt += ". Use only the supplied JSON; do not inspect artifacts or judge whether the claim is true. ";
     prompt += "Accept only when the claim is inside focus and outside every exclusion; lensFit specifically establishes that relationship; severity matches impact; materialityLevel matches how the claim affects the objective; and confidence matches the specificity, completeness, and uncertainty of the stated evidence. ";
     prompt += "Return accepted and a concrete reason.";
-    prompt += effort_instruction;
     prompt += " Finding JSON: ";
     prompt += finding_js;
     let gate_label = named_label(used_labels, "gate", finding.title);
     used_labels.push(gate_label);
-    quality_gate_jobs.push(with_model(#{
+    quality_gate_jobs.push(with_runtime(#{
         prompt: prompt,
         label: gate_label,
         capability_mode: "read-only",
         output_schema: quality_gate_schema,
-    }, agent_model));
+    }, agent_model, agent_effort));
 }
 let quality_gate_results = parallel(quality_gate_jobs);
 let gated_findings = [];
@@ -710,14 +709,13 @@ if dedupe_attempted {
     prompt += "Group duplicates that make the same falsifiable claim despite different wording or lenses. Keep distinct claims separate. ";
     prompt += "Every finding id must appear exactly once across groups. Order each memberIds list by the findings' input order, and order groups by their earliest member. ";
     prompt += "Return member IDs only; do not rewrite titles or claims.";
-    prompt += effort_instruction;
     prompt += " Findings JSON: ";
     prompt += findings_js;
-    let dedupe_result = agent(prompt, with_model(#{
+    let dedupe_result = agent(prompt, with_runtime(#{
         label: "review:deduplicate",
         capability_mode: "read-only",
         output_schema: dedupe_schema,
-    }, agent_model));
+    }, agent_model, agent_effort));
     if slot_failed(dedupe_result) || type_of(dedupe_result.output) != "map" || !groups_valid(dedupe_result.output.groups, findings) {
         dedupe_errors.push("deduplication failed or did not partition every finding exactly once");
     } else {
@@ -774,15 +772,14 @@ for item in verification_items {
     prompt += "Register each extra source in discoveredSources before citing it. reason is the justified exception for a source not already in the manifest. Research uses this for ordinary discovery. Other artifact kinds use it only when the extra source is necessary. Prefer primary sources. ";
     prompt += "Set real=true only if the canonical claim survives falsification. Set real=false when evidence refutes it. ";
     prompt += "Evidence requires exact registered {ref, location} references and reason must explain how they prove or refute the claim. Put remaining uncertainty in uncertainty.";
-    prompt += effort_instruction;
     let verify_label = named_label(used_labels, "verify", item.title);
     used_labels.push(verify_label);
-    verify_jobs.push(with_model(#{
+    verify_jobs.push(with_runtime(#{
         prompt: prompt,
         label: verify_label,
         capability_mode: "read-only",
         output_schema: verdict_schema,
-    }, agent_model));
+    }, agent_model, agent_effort));
 }
 let verdicts = parallel(verify_jobs);
 
@@ -865,14 +862,13 @@ judge_prompt += ". Do not inspect artifacts, discover sources, or invent finding
 judge_prompt += "Use each member's lens contract, severity, materiality, evidence, and the verifier record. ";
 judge_prompt += "Keep a claim only when it is material to the objective and survives verification. Drop refuted, unsupported, duplicate, or immaterial claims. ";
 judge_prompt += "If verifierReal=false, drop it. Every case id must appear exactly once in kept or dropped with a concrete nonempty why.";
-judge_prompt += effort_instruction;
 judge_prompt += " Cases JSON: ";
 judge_prompt += cases_js;
-let judgment = agent(judge_prompt, with_model(#{
+let judgment = agent(judge_prompt, with_runtime(#{
     label: "adjudicate",
     capability_mode: "read-only",
     output_schema: judgment_schema,
-}, agent_model));
+}, agent_model, agent_effort));
 
 let kept = [];
 let dropped = [];
