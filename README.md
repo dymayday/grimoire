@@ -43,6 +43,19 @@ paths = ["/absolute/path/to/grimoire/skills"]
 
 Type `/` and look for the names, or run `grok inspect`.
 
+## Patches
+
+`patches/grok-build` is the source of truth for local grok-build patches.
+See that folder's README. Symlink it into a grok-build clone:
+
+```bash
+ln -sfn "$(pwd)/patches/grok-build" /absolute/path/to/grok-build/local-patches
+```
+
+Keep `/local-patches` in grok-build `.git/info/exclude` so Git
+ignores the symlink. Then run
+`./local-patches/apply-and-build.sh` from grok-build, or use `update-grok`.
+
 ## Layout
 
 ```
@@ -50,4 +63,7 @@ skills/ultracode/SKILL.md
 skills/ultracode/ultracode.rhai
 skills/prewalk/SKILL.md
 skills/codex-imagegen/SKILL.md
+patches/grok-build/README.md
+patches/grok-build/apply-and-build.sh
+patches/grok-build/spawn-subagent-reasoning-effort.patch
 ```

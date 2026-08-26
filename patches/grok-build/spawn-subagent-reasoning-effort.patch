@@ -1,0 +1,1759 @@
+diff --git a/crates/codegen/xai-grok-pager/docs/user-guide/16-subagents.md b/crates/codegen/xai-grok-pager/docs/user-guide/16-subagents.md
+index f56a327..fc91114 100644
+--- a/crates/codegen/xai-grok-pager/docs/user-guide/16-subagents.md
++++ b/crates/codegen/xai-grok-pager/docs/user-guide/16-subagents.md
+@@ -147,6 +147,7 @@ The main agent calls the `spawn_subagent` tool. Its parameters:
+ | `prompt`          | The full task prompt for the subagent.                           |
+ | `description`     | A short label for the task (3-5 words).                          |
+ | `subagent_type`   | The agent type to launch. Defaults to `general-purpose`.         |
++| `reasoning_effort` | Optional reasoning effort for the effective subagent model. Supported values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. |
+ | `background`       | Run the subagent in the background and return immediately with a subagent ID. Defaults to `false`. |
+ | `isolation`       | `none` (shared workspace, the default) or `worktree` (isolated git worktree). |
+ | `resume_from`     | Continue a completed subagent's conversation. Pass its subagent ID. |
+@@ -301,13 +302,13 @@ For blocking subagents the single entry updates its bullet color when the child
+ 
+ ### Tasks pane (Ctrl+G)
+ 
+-As noted above — grouped under "Subagents", with spinners, elapsed times, and quick access to kill or inspect.
++As noted above — grouped under "Subagents", with spinners, `model · reasoning effort` on the far right, elapsed times, and quick access to kill or inspect.
+ 
+ ### Fullscreen framed view (the child transcript)
+ 
+ When you open a subagent (from a scrollback block or the tasks pane), the parent view is replaced by a bordered frame containing the child's full transcript:
+ 
+-- Title bar inside the frame: status icon (spinner / ✓ / ✗), label + bold description + model, optional "resumed"/"forked" badge, live activity · elapsed time, and [✗] close button.
++- Title bar inside the frame: status icon (spinner / ✓ / ✗), label + bold description + `model · reasoning effort` when effort is available, optional "resumed"/"forked" badge, live activity · elapsed time, and [✗] close button.
+ - The child's own scrollback, thinking, tool calls, and (limited) prompt area render inside the frame.
+ - Subagent views are largely observational — you generally cannot send new top-level prompts directly to them the way you can a parent session.
+ 
+diff --git a/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs b/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
+index 018ba2d..3b633de 100644
+--- a/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
++++ b/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
+@@ -389,6 +389,7 @@ pub(super) fn handle_session_notification_with_origin(
+             persona,
+             role,
+             model,
++            reasoning_effort,
+             effective_context_source,
+             resumed_from,
+             capability_mode,
+@@ -441,6 +442,7 @@ pub(super) fn handle_session_notification_with_origin(
+                     persona: persona.map(Arc::from),
+                     role: role.map(Arc::from),
+                     model: model.map(Arc::from),
++                    reasoning_effort: reasoning_effort.map(Arc::from),
+                     context_source: effective_context_source.map(Arc::from),
+                     resumed_from: resumed_from.map(Arc::from),
+                     capability_mode: capability_mode.map(Arc::from),
+diff --git a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
+index 052a30b..6c792cd 100644
+--- a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
++++ b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
+@@ -81,6 +81,7 @@ pub(super) fn make_subagent_info(child_sid: &str) -> SubagentInfo {
+         persona: None,
+         role: None,
+         model: None,
++        reasoning_effort: None,
+         context_source: None,
+         resumed_from: None,
+         capability_mode: None,
+@@ -1335,6 +1336,7 @@ pub(super) fn test_subagent_spawned_for_workflow(
+         persona: None,
+         role: None,
+         model: None,
++        reasoning_effort: None,
+         resumed_from: None,
+     }
+ }
+diff --git a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs
+index 938590e..c5c7831 100644
+--- a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs
++++ b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs
+@@ -53,6 +53,31 @@
+         assert_eq!(info.status.as_deref(), Some("cancelled"));
+     }
+ 
++    #[test]
++    fn spawned_subagent_stores_effective_runtime_metadata() {
++        let mut app = make_app_with_agent("sess-1");
++        let mut spawned = test_subagent_spawned("sess-1", "child-1");
++        let XaiSessionUpdate::SubagentSpawned {
++            model,
++            reasoning_effort,
++            ..
++        } = &mut spawned
++        else {
++            unreachable!();
++        };
++        *model = Some("grok-4.6".into());
++        *reasoning_effort = Some("high".into());
++
++        assert!(handle(
++            make_ext_session_notification("sess-1", spawned),
++            &mut app,
++        ));
++
++        let info = &app.agents[&AgentId(0)].subagent_sessions["child-1"];
++        assert_eq!(info.model.as_deref(), Some("grok-4.6"));
++        assert_eq!(info.reasoning_effort.as_deref(), Some("high"));
++    }
++
+     #[test]
+     fn killing_a_stuck_orphan_records_the_shell_reported_status() {
+         // The kill call carries the shell's terminal status: "cancelled" is the
+diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
+index cf57c08..b0fd862 100644
+--- a/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
++++ b/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
+@@ -2558,6 +2558,7 @@ pub(crate) mod test_fixtures {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             context_source: None,
+             resumed_from: None,
+             capability_mode: None,
+diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
+index 442b537..c5695cf 100644
+--- a/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
++++ b/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
+@@ -9,7 +9,7 @@ use super::{
+ use crate::actions::{ActionId, ActionRegistry};
+ use crate::key;
+ use crate::render::SafeBuf;
+-use crate::render::line_utils::truncate_line;
++use crate::render::line_utils::{truncate_line, truncate_str};
+ use crate::scrollback::block::BlockContent;
+ use crate::scrollback::layout::HorizontalLayout;
+ use crate::scrollback::render::ScratchBuffer;
+@@ -672,12 +672,7 @@ impl AgentView {
+         } else {
+             theme.accent_error
+         };
+-        let meta = info
+-            .and_then(|s| s.model.as_deref())
+-            .map(str::trim)
+-            .filter(|s| !s.is_empty())
+-            .unwrap_or("")
+-            .to_string();
++        let meta = info.map(|s| s.runtime_meta()).unwrap_or_default();
+         let badge = info.map(format_context_badge).unwrap_or("");
+         let activity_label: Option<String> = if is_running {
+             self.subagent_views.get(child_sid).and_then(|cv| {
+@@ -715,31 +710,21 @@ impl AgentView {
+             + right_margin
+             + badge_width;
+         let desc_start_x = title_x + 3;
+-        let avail = padded.width.saturating_sub(5 + right_width) as usize;
+-        let type_text = if type_label.is_empty() {
+-            String::new()
+-        } else if description.is_empty() {
+-            type_label.clone()
+-        } else {
+-            format!("{type_label} ")
+-        };
+-        let meta_text = if meta.is_empty() {
+-            String::new()
+-        } else {
+-            format!(" {meta}")
+-        };
+-        let overhead = type_text.width() + meta_text.width();
+-        let desc_max = avail.saturating_sub(overhead);
+-        let desc_display = crate::render::line_utils::truncate_str(&description, desc_max);
+-        if !type_text.is_empty() {
++        let left_used = desc_start_x.saturating_sub(padded.x);
++        // Extra 2-col gutter so truncated runtime meta cannot collide with
++        // the right-side activity/elapsed cluster.
++        let avail = padded.width.saturating_sub(left_used + 2 + right_width) as usize;
++        let (type_display, desc_display, meta_display) =
++            fit_fullscreen_subagent_title(avail, &type_label, &description, &meta);
++        if !type_display.is_empty() {
+             buf.set_span_safe(
+                 desc_start_x,
+                 title_y,
+-                &Span::styled(&type_text, Style::default().fg(label_color)),
+-                type_text.width() as u16,
++                &Span::styled(&type_display, Style::default().fg(label_color)),
++                type_display.width() as u16,
+             );
+         }
+-        let desc_x = desc_start_x + type_text.width() as u16;
++        let desc_x = desc_start_x + type_display.width() as u16;
+         buf.set_span_safe(
+             desc_x,
+             title_y,
+@@ -752,12 +737,12 @@ impl AgentView {
+             desc_display.width() as u16,
+         );
+         let after_desc_x = desc_x + desc_display.width() as u16;
+-        if !meta_text.is_empty() {
++        if !meta_display.is_empty() {
+             buf.set_span_safe(
+                 after_desc_x,
+                 title_y,
+-                &Span::styled(&meta_text, Style::default().fg(theme.gray)),
+-                meta_text.width() as u16,
++                &Span::styled(&meta_display, Style::default().fg(theme.gray)),
++                meta_display.width() as u16,
+             );
+         }
+         let mut rx = padded.x + padded.width.saturating_sub(right_margin + close_width + 1);
+@@ -4537,6 +4522,39 @@ impl AgentView {
+         (cursor, prompt_post_flush)
+     }
+ }
++
++/// Fit type, description, and runtime meta into `avail` columns.
++/// Meta is reserved first so model/effort stay visible and separated from
++/// the right-side controls; type is kept whole or dropped; description
++/// takes whatever remains.
++fn fit_fullscreen_subagent_title(
++    avail: usize,
++    type_label: &str,
++    description: &str,
++    meta: &str,
++) -> (String, String, String) {
++    use unicode_width::UnicodeWidthStr;
++    let mut type_text = type_label.to_string();
++    if !type_text.is_empty() && !description.is_empty() {
++        type_text.push(' ');
++    }
++    let meta_text = if meta.is_empty() {
++        String::new()
++    } else {
++        format!(" {meta}")
++    };
++    let meta_display = truncate_str(&meta_text, avail);
++    let text_avail = avail.saturating_sub(meta_display.width());
++    let type_display = if type_text.width() <= text_avail {
++        type_text
++    } else {
++        String::new()
++    };
++    let desc_max = text_avail.saturating_sub(type_display.width());
++    let desc_display = truncate_str(description, desc_max);
++    (type_display, desc_display, meta_display)
++}
++
+ /// Draw one ▼/▲ scroll-indicator arrow centered on row `y`, or clear its
+ /// hit area when hidden (`y: None`). The unconditional set-or-clear is the
+ /// point: a hit rect must never outlive the frame that painted its arrow,
+@@ -4770,6 +4788,117 @@ mod overlay_cycle_hint_tests {
+         );
+     }
+ }
++#[cfg(test)]
++mod subagent_title_tests {
++    use super::super::test_fixtures::{make_agent, running_subagent_info};
++    use super::fit_fullscreen_subagent_title;
++    use crate::actions::ActionRegistry;
++    use crate::app::bundle::BundleState;
++    use crate::scrollback::render::ScratchBuffer;
++    use ratatui::buffer::Buffer;
++    use ratatui::layout::Rect;
++    fn draw_title(width: u16, reasoning_effort: Option<&str>) -> String {
++        draw_title_with_state(width, reasoning_effort, true)
++    }
++    fn draw_title_with_state(
++        width: u16,
++        reasoning_effort: Option<&str>,
++        is_running: bool,
++    ) -> String {
++        let mut parent = make_agent();
++        let mut info = running_subagent_info("child");
++        info.description = "review changes".into();
++        info.model = Some("grok-4.6".into());
++        info.reasoning_effort = reasoning_effort.map(Into::into);
++        info.started_at -= std::time::Duration::from_secs(120);
++        if !is_running {
++            info.finished = true;
++            info.status = Some("completed".into());
++        }
++        parent.subagent_sessions.insert("child".into(), info);
++        let mut child = make_agent();
++        if is_running {
++            child.session.state = crate::app::agent::AgentState::TurnRunning;
++        }
++        parent
++            .subagent_views
++            .insert("child".into(), Box::new(child));
++        parent.active_subagent = Some("child".into());
++        let area = Rect::new(0, 0, width, 20);
++        let mut buf = Buffer::empty(area);
++        let mut scratch = ScratchBuffer::new();
++        let _ = parent.draw(
++            area,
++            &mut buf,
++            &ActionRegistry::defaults(),
++            &mut scratch,
++            None,
++            false,
++            crate::app::agent_view::BannerSlotParams::none(),
++            &BundleState::default(),
++            false,
++            false,
++            &mut Vec::new(),
++            super::AppRenderParams::default(),
++        );
++        (0..area.height)
++            .map(|y| (0..width).map(|x| buf[(x, y)].symbol()).collect::<String>())
++            .collect::<Vec<_>>()
++            .join("\n")
++    }
++    fn row_containing<'a>(text: &'a str, needle: &str) -> &'a str {
++        text.lines()
++            .find(|line| line.contains(needle))
++            .unwrap_or_else(|| panic!("subagent title row: {text:?}"))
++    }
++    #[test]
++    fn title_fit_reserves_meta_then_drops_type_that_does_not_fit() {
++        let (type_display, desc_display, meta_display) =
++            fit_fullscreen_subagent_title(20, "general", "review changes", "grok-4.6 · high");
++        assert_eq!(meta_display, " grok-4.6 · high");
++        assert!(type_display.is_empty(), "{type_display:?}");
++        assert_eq!(desc_display, "rev\u{2026}");
++    }
++    #[test]
++    fn title_fit_keeps_type_when_meta_leaves_room() {
++        let (type_display, desc_display, meta_display) =
++            fit_fullscreen_subagent_title(40, "general", "review changes", "grok-4.6");
++        assert_eq!(type_display, "general ");
++        assert_eq!(desc_display, "review changes");
++        assert_eq!(meta_display, " grok-4.6");
++    }
++    #[test]
++    fn fullscreen_subagent_title_shows_model_and_effort() {
++        let title = draw_title(100, Some("high"));
++        assert!(title.contains("grok-4.6 · high"), "{title:?}");
++    }
++    #[test]
++    fn fullscreen_subagent_title_keeps_model_when_effort_is_absent() {
++        let title = draw_title(100, None);
++        assert!(title.contains("grok-4.6"), "{title:?}");
++        assert!(!title.contains("grok-4.6 ·"), "{title:?}");
++    }
++    #[test]
++    fn narrow_fullscreen_subagent_title_keeps_right_controls() {
++        let title = draw_title(42, Some("high"));
++        assert!(title.contains("[✗]"), "{title:?}");
++    }
++    #[test]
++    fn narrow_fullscreen_subagent_title_separates_meta_from_activity() {
++        let title = draw_title(55, Some("high"));
++        let title_row = row_containing(&title, "Waiting for response");
++        assert!(!title_row.contains("grokWaiting"), "{title_row:?}");
++        assert!(!title_row.contains("highWaiting"), "{title_row:?}");
++        assert!(title_row.contains("grok-4.6"), "{title_row:?}");
++    }
++    #[test]
++    fn narrow_completed_subagent_title_separates_meta_from_elapsed() {
++        let title = draw_title_with_state(55, Some("high"), false);
++        let title_row = row_containing(&title, "[✗]");
++        assert!(!title_row.contains("high2m"), "{title_row:?}");
++    }
++}
++
+ #[cfg(test)]
+ mod overlay_post_flush_tests {
+     use super::super::test_fixtures::make_agent;
+diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
+index a9e72f3..041ef1b 100644
+--- a/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
++++ b/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
+@@ -2075,6 +2075,7 @@ mod resolve_turn_activity_tests {
+                 persona: None,
+                 role: None,
+                 model: None,
++                reasoning_effort: None,
+                 context_source: None,
+                 resumed_from: None,
+                 capability_mode: None,
+diff --git a/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs b/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
+index b299e4c..ba4b18e 100644
+--- a/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
++++ b/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
+@@ -395,6 +395,7 @@ fn make_test_subagent(child_sid: &str, sa_id: &str) -> crate::app::subagent::Sub
+         persona: None,
+         role: None,
+         model: None,
++        reasoning_effort: None,
+         context_source: None,
+         resumed_from: None,
+         capability_mode: None,
+diff --git a/crates/codegen/xai-grok-pager/src/app/subagent.rs b/crates/codegen/xai-grok-pager/src/app/subagent.rs
+index a6c3d02..50af7d7 100644
+--- a/crates/codegen/xai-grok-pager/src/app/subagent.rs
++++ b/crates/codegen/xai-grok-pager/src/app/subagent.rs
+@@ -45,6 +45,7 @@ pub struct SubagentInfo {
+     pub persona: Option<Arc<str>>,
+     pub role: Option<Arc<str>>,
+     pub model: Option<Arc<str>>,
++    pub reasoning_effort: Option<Arc<str>>,
+     /// "new" or "resumed".
+     pub context_source: Option<Arc<str>>,
+     pub resumed_from: Option<Arc<str>>,
+@@ -227,6 +228,20 @@ impl SubagentInfo {
+             self.elapsed()
+         }
+     }
++
++    pub(crate) fn runtime_meta(&self) -> String {
++        let model = self
++            .model
++            .as_deref()
++            .map(str::trim)
++            .filter(|s| !s.is_empty());
++        let reasoning_effort = self
++            .reasoning_effort
++            .as_deref()
++            .map(str::trim)
++            .filter(|s| !s.is_empty());
++        join_meta_parts(&[model, reasoning_effort])
++    }
+ }
+ 
+ /// Pager-side slice of the shell's on-disk `SubagentMeta`.
+@@ -393,6 +408,7 @@ pub(crate) mod test_support {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             context_source: None,
+             resumed_from: None,
+             capability_mode: None,
+diff --git a/crates/codegen/xai-grok-pager/src/app/subagent_format_tests.rs b/crates/codegen/xai-grok-pager/src/app/subagent_format_tests.rs
+index 063d5c4..1be33c1 100644
+--- a/crates/codegen/xai-grok-pager/src/app/subagent_format_tests.rs
++++ b/crates/codegen/xai-grok-pager/src/app/subagent_format_tests.rs
+@@ -61,6 +61,24 @@ fn subagent_meta_line_joins_present_fields() {
+     }
+ }
+ 
++#[test]
++fn subagent_runtime_meta_joins_model_and_effort() {
++    let cases = [
++        (Some("grok-4.6"), Some("high"), "grok-4.6 · high"),
++        (Some("grok-4.6"), None, "grok-4.6"),
++        (None, Some("high"), "high"),
++        (None, None, ""),
++        (Some(" "), Some("high"), "high"),
++        (Some("grok-4.6"), Some(" "), "grok-4.6"),
++    ];
++    for (model, reasoning_effort, expected) in cases {
++        let mut info = make_info();
++        info.model = model.map(Into::into);
++        info.reasoning_effort = reasoning_effort.map(Into::into);
++        assert_eq!(info.runtime_meta(), expected);
++    }
++}
++
+ #[test]
+ fn subagent_type_label_abbreviates_general_purpose() {
+     let cases = [
+diff --git a/crates/codegen/xai-grok-pager/src/views/dashboard/row.rs b/crates/codegen/xai-grok-pager/src/views/dashboard/row.rs
+index beb7c94..9aaab25 100644
+--- a/crates/codegen/xai-grok-pager/src/views/dashboard/row.rs
++++ b/crates/codegen/xai-grok-pager/src/views/dashboard/row.rs
+@@ -1068,6 +1068,7 @@ mod tests {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             context_source: None,
+             resumed_from: None,
+             capability_mode: None,
+diff --git a/crates/codegen/xai-grok-pager/src/views/tasks_pane.rs b/crates/codegen/xai-grok-pager/src/views/tasks_pane.rs
+index fea38d0..435877d 100644
+--- a/crates/codegen/xai-grok-pager/src/views/tasks_pane.rs
++++ b/crates/codegen/xai-grok-pager/src/views/tasks_pane.rs
+@@ -363,12 +363,7 @@ impl TaskEntry {
+         // Single consolidated label (persona > role > subagent_type > tag >
+         // "general") plus description with any `[tag]` prefix stripped.
+         let (type_label, description) = format_subagent_label(info);
+-        let model_suffix = info
+-            .model
+-            .as_deref()
+-            .map(str::trim)
+-            .filter(|s| !s.is_empty())
+-            .unwrap_or("");
++        let runtime_suffix = info.runtime_meta();
+ 
+         // Label color is state-driven: pending_kill / running stay vivid;
+         // completed / failed keep their hue (green / red) but blend toward
+@@ -418,9 +413,9 @@ impl TaskEntry {
+         // empty (reachable when `info.description == "[tag]"`); otherwise we
+         // render `"Tag "` with a stray trailing space.
+         //
+-        // The model is NOT rendered inline here — it's drawn right-aligned in
+-        // the overlay (just to the left of the elapsed/duration). The label
+-        // string below still includes the model so it remains searchable.
++        // Model/effort is NOT rendered inline here — it's drawn right-aligned
++        // in the overlay (just to the left of the elapsed/duration). The label
++        // string below still includes that metadata so it remains searchable.
+         let type_sep = if description.is_empty() { "" } else { " " };
+         let mut spans = vec![
+             Span::styled(format!("{type_label}{type_sep}"), type_style),
+@@ -433,11 +428,11 @@ impl TaskEntry {
+             ));
+         }
+ 
+-        let label = match (description.is_empty(), model_suffix.is_empty()) {
++        let label = match (description.is_empty(), runtime_suffix.is_empty()) {
+             (true, true) => type_label.clone(),
+-            (true, false) => format!("{type_label} {model_suffix}"),
++            (true, false) => format!("{type_label} {runtime_suffix}"),
+             (false, true) => format!("{type_label} {description}"),
+-            (false, false) => format!("{type_label} {description} {model_suffix}"),
++            (false, false) => format!("{type_label} {description} {runtime_suffix}"),
+         };
+         let styled = Line::from(spans);
+ 
+@@ -1768,12 +1763,7 @@ impl TasksPane {
+ 
+         // Clear overlay area to prevent label text bleeding through.
+         let badge = format_context_badge(info);
+-        let model_text = info
+-            .model
+-            .as_deref()
+-            .map(str::trim)
+-            .filter(|s| !s.is_empty())
+-            .unwrap_or("");
++        let runtime_text = info.runtime_meta();
+         let right_text_w = right_text.width() as u16;
+         let kill_w: u16 = if info.is_running() { 3 } else { 0 };
+         let badge_w: u16 = if badge.is_empty() {
+@@ -1781,12 +1771,12 @@ impl TasksPane {
+         } else {
+             badge.width() as u16 + 1
+         };
+-        let model_w: u16 = if model_text.is_empty() {
++        let runtime_w: u16 = if runtime_text.is_empty() {
+             0
+         } else {
+-            model_text.width() as u16 + 1
++            runtime_text.width() as u16 + 1
+         };
+-        let overlay_w = kill_w + 3 + right_text_w + model_w + badge_w + 1;
++        let overlay_w = kill_w + 3 + right_text_w + runtime_w + badge_w + 1;
+         clear_overlay_area(buf, area, y, overlay_w);
+ 
+         let mut rx = area.x + area.width;
+@@ -1842,16 +1832,15 @@ impl TasksPane {
+         rx = rx.saturating_sub(right_width);
+         buf.set_span(rx, y, &Span::styled(right_text, right_style), right_width);
+ 
+-        // Model (right-aligned, just to the left of elapsed). Pre-computed
+-        // above for overlay clearing.
+-        if !model_text.is_empty() {
+-            rx = rx.saturating_sub(model_w);
++        // Model/effort (right-aligned, just to the left of elapsed).
++        if !runtime_text.is_empty() {
++            rx = rx.saturating_sub(runtime_w);
+             let mstyle = Style::default().fg(theme.gray);
+             buf.set_span(
+                 rx,
+                 y,
+-                &Span::styled(format!("{model_text} "), mstyle),
+-                model_w,
++                &Span::styled(format!("{runtime_text} "), mstyle),
++                runtime_w,
+             );
+         }
+ 
+@@ -1961,6 +1950,7 @@ mod tests {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             context_source: None,
+             resumed_from: None,
+             capability_mode: None,
+@@ -2241,6 +2231,16 @@ mod tests {
+         bg_tasks: &std::collections::BTreeMap<String, BgTaskState>,
+         width: u16,
+         height: u16,
++    ) -> Vec<String> {
++        render_pane_to_strings_with(pane, bg_tasks, &HashMap::new(), width, height)
++    }
++
++    fn render_pane_to_strings_with(
++        pane: &mut TasksPane,
++        bg_tasks: &std::collections::BTreeMap<String, BgTaskState>,
++        subagents: &HashMap<String, SubagentInfo>,
++        width: u16,
++        height: u16,
+     ) -> Vec<String> {
+         let area = Rect::new(0, 0, width, height);
+         let mut buf = Buffer::empty(area);
+@@ -2251,7 +2251,7 @@ mod tests {
+             false,
+             &layout,
+             bg_tasks,
+-            &HashMap::new(),
++            subagents,
+             &HashMap::new(),
+         );
+         (0..height)
+@@ -2263,6 +2263,74 @@ mod tests {
+             .collect()
+     }
+ 
++    #[test]
++    fn render_subagent_overlay_shows_model_and_effort() {
++        let mut pane = TasksPane::new();
++        pane.overlay.show();
++
++        let mut info = make_info();
++        info.model = Some("grok-4.6".into());
++        info.reasoning_effort = Some("high".into());
++        let mut subagents = HashMap::new();
++        subagents.insert("cs-1".into(), info);
++
++        pane.sync(
++            &BTreeMap::new(),
++            &subagents,
++            &HashMap::new(),
++            None,
++            &HashSet::new(),
++            &[],
++        );
++
++        let lines = render_pane_to_strings_with(&mut pane, &BTreeMap::new(), &subagents, 80, 16);
++        let row = lines
++            .iter()
++            .find(|line| line.contains("grok-4.6"))
++            .unwrap_or_else(|| panic!("subagent overlay row missing model: {lines:?}"));
++        let model_at = row.find("grok-4.6").expect("model on overlay row");
++        assert!(
++            row[model_at..].contains("grok-4.6 · high"),
++            "far-right overlay must show model and effort: {row:?}"
++        );
++        let after_meta = &row[model_at + "grok-4.6 · high".len()..];
++        assert!(
++            after_meta.contains('s') || after_meta.contains("killing"),
++            "elapsed time must remain to the right of model and effort: {row:?}"
++        );
++    }
++
++    #[test]
++    fn render_subagent_overlay_keeps_model_when_effort_is_absent() {
++        let mut pane = TasksPane::new();
++        pane.overlay.show();
++
++        let mut info = make_info();
++        info.model = Some("grok-4.6".into());
++        let mut subagents = HashMap::new();
++        subagents.insert("cs-1".into(), info);
++
++        pane.sync(
++            &BTreeMap::new(),
++            &subagents,
++            &HashMap::new(),
++            None,
++            &HashSet::new(),
++            &[],
++        );
++
++        let lines = render_pane_to_strings_with(&mut pane, &BTreeMap::new(), &subagents, 80, 16);
++        let joined = lines.join("\n");
++        assert!(
++            joined.contains("grok-4.6"),
++            "model must still render when effort is absent: {joined}"
++        );
++        assert!(
++            !joined.contains("grok-4.6 ·"),
++            "absent effort must not invent a separator: {joined}"
++        );
++    }
++
+     #[test]
+     fn render_shows_line_count_badge_for_bg_task_with_stdout() {
+         let mut pane = TasksPane::new();
+@@ -3092,6 +3160,22 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn entry_label_includes_model_and_effort() {
++        let mut info = make_info();
++        info.model = Some("grok-4.6".into());
++        info.reasoning_effort = Some("high".into());
++        let entry = TaskEntry::from_subagent(&info);
++        let label = match &entry {
++            TaskEntry::Agent { label, .. } => label.as_str(),
++            _ => panic!("expected Agent variant"),
++        };
++        assert!(
++            label.contains("grok-4.6 · high"),
++            "searchable label should contain model and effort: {label}",
++        );
++    }
++
+     #[test]
+     fn entry_label_no_meta_when_empty() {
+         let info = make_info();
+diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
+index dfb6a76..147ab98 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
+@@ -4,11 +4,81 @@ use super::attempt_runner::{
+ };
+ use super::*;
+ use crate::upload::trace::PromptMetadataParams;
+-use xai_grok_sampling_types::ReasoningEffort;
++use xai_grok_sampling_types::{ReasoningEffort, ReasoningEffortOption};
+ use xai_grok_tools::implementations::{grok_build, opencode};
+ /// Budget for the pre-completion child transcript flush (replay buffer +
+ /// persistence to disk). Mirrors the workflow-shutdown persistence bound.
+ const CHILD_COMPLETION_FLUSH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
++const FALLBACK_REASONING_EFFORTS: &[ReasoningEffort] = &[
++    ReasoningEffort::Low,
++    ReasoningEffort::Medium,
++    ReasoningEffort::High,
++    ReasoningEffort::Xhigh,
++];
++
++pub(super) fn apply_reasoning_effort_override(
++    config: &mut xai_grok_sampler::SamplerConfig,
++    raw_effort: Option<&str>,
++    model_id: &str,
++    supports_reasoning_effort: bool,
++    offered_efforts: &[ReasoningEffortOption],
++    is_explicit_override: bool,
++) -> Result<(), String> {
++    let Some(raw_effort) = raw_effort else {
++        return Ok(());
++    };
++    if !supports_reasoning_effort {
++        if is_explicit_override {
++            return Err(format!(
++                "Cannot apply reasoning_effort '{raw_effort}': model '{model_id}' does not support \
++                 reasoning effort. Omit reasoning_effort or select a supporting model."
++            ));
++        }
++        return Ok(());
++    }
++    let effort = match raw_effort.parse::<ReasoningEffort>() {
++        Ok(effort) => effort,
++        Err(error) => {
++            if is_explicit_override {
++                return Err(format!(
++                    "Invalid resolved reasoning_effort {raw_effort:?}: {error}"
++                ));
++            }
++            tracing::warn!(
++                value = raw_effort,
++                error = %error,
++                "subagent reasoning_effort: parse failed, ignoring override"
++            );
++            return Ok(());
++        }
++    };
++    let is_offered = if offered_efforts.is_empty() {
++        FALLBACK_REASONING_EFFORTS.contains(&effort)
++    } else {
++        offered_efforts.iter().any(|option| option.value == effort)
++    };
++    if is_explicit_override && !is_offered {
++        let available = if offered_efforts.is_empty() {
++            FALLBACK_REASONING_EFFORTS
++                .iter()
++                .map(|effort| effort.as_str())
++                .collect::<Vec<_>>()
++                .join(", ")
++        } else {
++            offered_efforts
++                .iter()
++                .map(|option| option.value.as_str())
++                .collect::<Vec<_>>()
++                .join(", ")
++        };
++        return Err(format!(
++            "Cannot apply reasoning_effort '{raw_effort}': model '{model_id}' offers: {available}"
++        ));
++    }
++    config.reasoning_effort = Some(effort);
++    Ok(())
++}
++
+ pub(super) fn task_model_override_error(
+     requested: Option<&str>,
+     provenance: ModelOverrideProvenance,
+@@ -202,6 +272,72 @@ pub(crate) async fn run_shell_child(
+     ) {
+         return child_run_output(failure_result(&request, &error), completion_data, None);
+     }
++    if request.fork_context {
++        effective_runtime.model = Some(ctx.model_id.0.to_string());
++    }
++    let (mut effective_sampling_config, mut effective_model_id) = resolve_effective_model_config(
++        effective_runtime.model.as_deref(),
++        &request.subagent_type,
++        &definition.model,
++        &ctx,
++    )
++    .await;
++    {
++        let model_str = &effective_sampling_config.model;
++        let model_unknown = !model_str.is_empty()
++            && !ctx.available_models.is_empty()
++            && !ctx.available_models.contains_key(model_str)
++            && !ctx
++                .available_models
++                .values()
++                .any(|e| e.info().model == *model_str);
++        if model_unknown {
++            let (parent_config, parent_mid) = read_parent_sampling_config(&ctx).await;
++            tracing::warn!(
++                subagent_id = %request.id,
++                resolved_model = %model_str,
++                parent_model = %parent_config.model,
++                "Resolved subagent model not found in available models — \
++                 falling back to parent model"
++            );
++            effective_sampling_config = parent_config;
++            effective_model_id = parent_mid;
++        }
++    }
++    if let Some(ref source) = resume_source
++        && let Some(ref source_model) = source.model_id
++        && effective_model_id.0.as_ref() != source_model.as_str()
++    {
++        if let Some(resolved) = resolve_model_override_to_config(source_model, &ctx) {
++            tracing::info!(
++                subagent_id = %request.id,
++                resolved_model = %effective_model_id.0,
++                source_model = source_model,
++                "Pinning resumed child to source model"
++            );
++            effective_sampling_config = resolved.0;
++            effective_model_id = resolved.1;
++        } else {
++            let msg = format!(
++                "Cannot resume from subagent '{}': source model '{source_model}' \
++                 is no longer available in the model catalogue.",
++                source.subagent_id,
++            );
++            return child_run_output(failure_result(&request, &msg), completion_data, None);
++        }
++    }
++    let model_id = effective_model_id.0.as_ref();
++    let offered_efforts = ctx.models_manager.model_reasoning_efforts(model_id);
++    if let Err(msg) = apply_reasoning_effort_override(
++        &mut effective_sampling_config,
++        effective_runtime.reasoning_effort.as_deref(),
++        model_id,
++        ctx.models_manager.model_supports_reasoning_effort(model_id),
++        &offered_efforts,
++        request.runtime_overrides.reasoning_effort.is_some(),
++    ) {
++        return child_run_output(failure_result(&request, &msg), completion_data, None);
++    }
+     let worktree_path = if let Some(ref source) = resume_source {
+         if effective_runtime.isolation != xai_tool_types::SubagentIsolationMode::None
+             && source.worktree_path.is_none()
+@@ -388,77 +524,7 @@ pub(crate) async fn run_shell_child(
+             )
+         });
+     }
+-    if request.fork_context {
+-        effective_runtime.model = Some(ctx.model_id.0.to_string());
+-    }
+-    let (mut effective_sampling_config, mut effective_model_id) = resolve_effective_model_config(
+-        effective_runtime.model.as_deref(),
+-        &request.subagent_type,
+-        &definition.model,
+-        &ctx,
+-    )
+-    .await;
+     let subagent_max_turns = resolve_subagent_max_turns(definition.max_turns, ctx.parent_max_turns);
+-    {
+-        let model_str = &effective_sampling_config.model;
+-        let model_unknown = !model_str.is_empty()
+-            && !ctx.available_models.is_empty()
+-            && !ctx.available_models.contains_key(model_str)
+-            && !ctx
+-                .available_models
+-                .values()
+-                .any(|e| e.info().model == *model_str);
+-        if model_unknown {
+-            let (parent_config, parent_mid) = read_parent_sampling_config(&ctx).await;
+-            tracing::warn!(
+-                subagent_id = %request.id,
+-                resolved_model = %model_str,
+-                parent_model = %parent_config.model,
+-                "Resolved subagent model not found in available models — \
+-                 falling back to parent model"
+-            );
+-            effective_sampling_config = parent_config;
+-            effective_model_id = parent_mid;
+-        }
+-    }
+-    if let Some(ref source) = resume_source
+-        && let Some(ref source_model) = source.model_id
+-        && effective_model_id.0.as_ref() != source_model.as_str()
+-    {
+-        if let Some(resolved) = resolve_model_override_to_config(source_model, &ctx) {
+-            tracing::info!(
+-                subagent_id = %request.id,
+-                resolved_model = %effective_model_id.0,
+-                source_model = source_model,
+-                "Pinning resumed child to source model"
+-            );
+-            effective_sampling_config = resolved.0;
+-            effective_model_id = resolved.1;
+-        } else {
+-            let msg = format!(
+-                "Cannot resume from subagent '{}': source model '{source_model}' \
+-                 is no longer available in the model catalogue.",
+-                source.subagent_id,
+-            );
+-            return child_run_output(failure_result(&request, &msg), completion_data, None);
+-        }
+-    }
+-    if let Some(raw) = effective_runtime.reasoning_effort.as_deref()
+-        && ctx
+-            .models_manager
+-            .model_supports_reasoning_effort(effective_model_id.0.as_ref())
+-    {
+-        match raw.parse::<ReasoningEffort>() {
+-            Ok(eff) => effective_sampling_config.reasoning_effort = Some(eff),
+-            Err(err) => {
+-                tracing::warn!(
+-                    value = raw,
+-                    error = %err,
+-                    "subagent reasoning_effort: parse failed, ignoring override"
+-                )
+-            }
+-        }
+-    }
+     let subagent_id = request.id.clone();
+     let child_session_id = acp::SessionId::new(subagent_id.clone());
+     let override_cwd = select_override_cwd(resume_source.as_ref(), request.cwd.as_deref());
+@@ -608,6 +674,9 @@ pub(crate) async fn run_shell_child(
+             persona: effective_runtime.persona.clone(),
+             role: effective_runtime.role_name.clone(),
+             model: Some(effective_model_id.0.to_string()),
++            reasoning_effort: effective_sampling_config
++                .reasoning_effort
++                .map(|effort| effort.to_string()),
+             resumed_from: request.resume_from.clone(),
+             workflow_run_id: request.owner.workflow_run_id().map(str::to_string),
+         },
+diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
+index 138fc93..422fe36 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
+@@ -7,11 +7,128 @@ use super::spawn::{
+ use super::attempt_runner::{
+     canonical_total_tokens, record_subagent_usage, usage_is_incomplete,
+ };
++use crate::agent::subagent::handle_request::apply_reasoning_effort_override;
+ use crate::test_support::lsp_runtime::{ctx_with_toggle, test_gateway_with_receiver};
++use xai_grok_sampler::SamplerConfig;
++use xai_grok_sampling_types::{ReasoningEffort, ReasoningEffortOption};
+ use xai_grok_subagent_resolution::resolve_effective_overrides;
+ use xai_grok_tools::implementations::grok_build::task::coordinator::{
+     ChildCompletion, CompletionDisposition,
+ };
++
++fn apply_test_reasoning_effort(
++    raw: &str,
++    supports_reasoning_effort: bool,
++    offered: &[ReasoningEffortOption],
++    is_explicit_override: bool,
++) -> (SamplerConfig, Result<(), String>) {
++    let mut config = SamplerConfig::default();
++    let result = apply_reasoning_effort_override(
++        &mut config,
++        Some(raw),
++        "test-model",
++        supports_reasoning_effort,
++        offered,
++        is_explicit_override,
++    );
++    (config, result)
++}
++
++#[test]
++fn reasoning_effort_override_applies_to_supporting_model() {
++    let (config, result) = apply_test_reasoning_effort("high", true, &[], true);
++    result.unwrap();
++    assert_eq!(
++        config.reasoning_effort,
++        Some(ReasoningEffort::High)
++    );
++}
++
++#[test]
++fn reasoning_effort_override_rejects_unsupported_model() {
++    let (config, result) = apply_test_reasoning_effort("high", false, &[], true);
++    let error = result.unwrap_err();
++    assert!(error.contains("does not support reasoning effort"));
++    assert!(config.reasoning_effort.is_none());
++}
++
++#[test]
++fn reasoning_effort_override_inherited_is_ignored_for_unsupported_model() {
++    let (config, result) = apply_test_reasoning_effort("high", false, &[], false);
++    result.unwrap();
++    assert!(config.reasoning_effort.is_none());
++}
++
++#[test]
++fn reasoning_effort_override_enforces_model_menu() {
++    let offered = [ReasoningEffortOption {
++        id: "balanced".into(),
++        value: ReasoningEffort::Medium,
++        label: "Balanced".into(),
++        description: None,
++        default: true,
++    }];
++
++    let (config, result) = apply_test_reasoning_effort("medium", true, &offered, true);
++    result.unwrap();
++    assert_eq!(config.reasoning_effort, Some(ReasoningEffort::Medium));
++
++    let (config, result) = apply_test_reasoning_effort("high", true, &offered, true);
++    let error = result.unwrap_err();
++    assert!(error.contains("offers: medium"));
++    assert!(config.reasoning_effort.is_none());
++}
++
++#[test]
++fn reasoning_effort_override_enforces_fallback_model_menu() {
++    for effort in ["low", "medium", "high", "xhigh"] {
++        let (config, result) = apply_test_reasoning_effort(effort, true, &[], true);
++        result.unwrap();
++        assert_eq!(config.reasoning_effort.unwrap().as_str(), effort);
++    }
++
++    for effort in ["none", "minimal", "max"] {
++        let (config, result) = apply_test_reasoning_effort(effort, true, &[], true);
++        let error = result.unwrap_err();
++        assert!(error.contains("offers: low, medium, high, xhigh"));
++        assert!(config.reasoning_effort.is_none());
++    }
++}
++
++#[test]
++fn reasoning_effort_override_inherited_ignores_model_menu() {
++    let offered = [ReasoningEffortOption {
++        id: "balanced".into(),
++        value: ReasoningEffort::Medium,
++        label: "Balanced".into(),
++        description: None,
++        default: true,
++    }];
++    let (config, result) = apply_test_reasoning_effort("high", true, &offered, false);
++    result.unwrap();
++    assert_eq!(config.reasoning_effort, Some(ReasoningEffort::High));
++}
++
++#[test]
++fn reasoning_effort_override_rejects_invalid_resolved_value() {
++    let (config, result) = apply_test_reasoning_effort("turbo", true, &[], true);
++    let error = result.unwrap_err();
++    assert!(error.contains("Invalid resolved reasoning_effort"));
++    assert!(config.reasoning_effort.is_none());
++}
++
++#[test]
++fn reasoning_effort_validation_precedes_worktree_lifecycle() {
++    let source = include_str!("../handle_request.rs");
++    let validation = source
++        .find("if let Err(msg) = apply_reasoning_effort_override(")
++        .expect("reasoning effort validation");
++    let worktree_lifecycle = source
++        .find("let worktree_path =")
++        .expect("worktree lifecycle");
++    assert!(validation < worktree_lifecycle);
++}
++
+ #[test]
+ fn canonical_total_tokens_does_not_double_count_reasoning() {
+     let totals = xai_chat_state::UsageTotals {
+diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
+index 83befb1..8c53411 100644
+--- a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
++++ b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
+@@ -2058,7 +2058,8 @@ fn notification_subagent_spawned_includes_resumed_from() {
+         capability_mode: None,
+         persona: Some("implementer".into()),
+         role: None,
+-        model: None,
++        model: Some("grok-4.6".into()),
++        reasoning_effort: Some("high".into()),
+         resumed_from: Some("prev-agent-id".into()),
+         workflow_run_id: None,
+     };
+@@ -2066,7 +2067,8 @@ fn notification_subagent_spawned_includes_resumed_from() {
+     assert_eq!(json["resumed_from"], "prev-agent-id");
+     assert_eq!(json["effective_context_source"], "resumed");
+     assert_eq!(json["role"], serde_json::Value::Null);
+-    assert_eq!(json["model"], serde_json::Value::Null);
++    assert_eq!(json["model"], "grok-4.6");
++    assert_eq!(json["reasoning_effort"], "high");
+     let fresh = SessionUpdate::SubagentSpawned {
+         subagent_id: "sa-fresh".into(),
+         parent_session_id: "p".into(),
+@@ -2080,6 +2082,7 @@ fn notification_subagent_spawned_includes_resumed_from() {
+         persona: None,
+         role: None,
+         model: None,
++        reasoning_effort: None,
+         resumed_from: None,
+         workflow_run_id: None,
+     };
+@@ -2087,6 +2090,7 @@ fn notification_subagent_spawned_includes_resumed_from() {
+     assert!(json.get("resumed_from").is_none());
+     assert!(json.get("role").is_none());
+     assert!(json.get("model").is_none());
++    assert!(json.get("reasoning_effort").is_none());
+ }
+ #[test]
+ fn upload_ref_includes_resumed_from() {
+diff --git a/crates/codegen/xai-grok-shell/src/extensions/notification.rs b/crates/codegen/xai-grok-shell/src/extensions/notification.rs
+index 1ca3851..151d8a5 100644
+--- a/crates/codegen/xai-grok-shell/src/extensions/notification.rs
++++ b/crates/codegen/xai-grok-shell/src/extensions/notification.rs
+@@ -701,6 +701,9 @@ pub enum SessionUpdate {
+         /// Effective model ID used by the subagent (may differ from the parent).
+         #[serde(default, skip_serializing_if = "Option::is_none")]
+         model: Option<String>,
++        /// Effective reasoning effort applied to the subagent.
++        #[serde(default, skip_serializing_if = "Option::is_none")]
++        reasoning_effort: Option<String>,
+         /// ID of the source subagent this session was resumed from.
+         #[serde(default, skip_serializing_if = "Option::is_none")]
+         resumed_from: Option<String>,
+@@ -1641,6 +1644,7 @@ mod tests {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             resumed_from: None,
+             workflow_run_id: None,
+         })
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
+index 2004559..ee5d167 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
+@@ -3265,6 +3265,7 @@ mod plan_mode_edit_gate_tests {
+                     resume_from: None,
+                     cwd: None,
+                     model: None,
++                    reasoning_effort: None,
+                     task_id: None,
+                 })
+             ),
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+index b84ecab..51533a8 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+@@ -1,6 +1,7 @@
+ //! Wiring tests for MCP tool-layer images through `handle_bridge_tool_success`.
+ use super::support::*;
+ use super::*;
++use base64::Engine as _;
+ use xai_grok_sampling_types::{ContentPart, ConversationItem};
+ use xai_grok_tools::types::output::{MCPOutput, ToolOutput, ToolRunResult};
+ use xai_grok_tools::util::base64_images::{ExtractedImage, IMAGE_CONTENT_PLACEHOLDER};
+diff --git a/crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs b/crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs
+index faa1e58..a026155 100644
+--- a/crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs
+@@ -578,6 +578,7 @@ async fn test_subagent_notifications_round_trip() {
+             persona: None,
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             resumed_from: None,
+             workflow_run_id: None,
+         },
+@@ -696,6 +697,7 @@ async fn test_subagent_spawned_resumed_roundtrip() {
+             persona: Some("implementer".to_string()),
+             role: None,
+             model: None,
++            reasoning_effort: None,
+             resumed_from: Some("source-agent-id".to_string()),
+             workflow_run_id: None,
+         },
+diff --git a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs b/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
+index fc0d446..9fb1d0c 100644
+--- a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
++++ b/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
+@@ -391,6 +391,20 @@ impl xai_tool_runtime::Tool for TaskTool {
+             model
+         };
+ 
++        let reasoning_effort = match input.reasoning_effort {
++            Some(raw) if raw.trim().is_empty() => None,
++            Some(raw) => {
++                let effort = xai_tool_types::canonical_reasoning_effort(&raw).ok_or_else(|| {
++                    xai_tool_runtime::ToolError::invalid_arguments(format!(
++                        "Invalid reasoning_effort: {raw:?}. Expected one of: {}",
++                        xai_tool_types::REASONING_EFFORT_VALUES
++                    ))
++                })?;
++                Some(effort.to_owned())
++            }
++            None => None,
++        };
++
+         // Treat blank/empty/"null" cwd as absent (models sometimes emit these).
+         // Also strip stray surrounding quote characters and expand `~`.
+         let cwd = input.cwd.as_deref().and_then(sanitize_cwd_value);
+@@ -524,7 +538,7 @@ impl xai_tool_runtime::Tool for TaskTool {
+             runtime_overrides: SubagentRuntimeOverrides {
+                 model,
+                 model_override_provenance: ModelOverrideProvenance::Tool,
+-                reasoning_effort: None,
++                reasoning_effort,
+                 persona: None,
+                 // JSON cannot set this field. Compat-harness adapters still
+                 // populate it in-process; model-facing spawns stay `None`.
+@@ -761,6 +775,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -794,6 +809,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -828,6 +844,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -859,6 +876,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -917,6 +935,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -973,6 +992,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -1016,6 +1036,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -1124,6 +1145,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         }
+     }
+@@ -1138,6 +1160,18 @@ mod tests {
+         resources
+     }
+ 
++    fn complete_spawn(request: SubagentSpawnRequest) {
++        request
++            .respond_with(|request| SubagentResult {
++                success: true,
++                output: "ok".into(),
++                subagent_id: request.id.clone(),
++                child_session_id: request.id.clone(),
++                ..Default::default()
++            })
++            .unwrap();
++    }
++
+     /// Seed `chat_history.jsonl` so leftover-parent detection can fire.
+     fn resources_with_parent_exec(
+         backend: SubagentBackendResource,
+@@ -1629,11 +1663,12 @@ mod tests {
+                 .unwrap();
+         assert_eq!(input.isolation, Some(SubagentIsolationMode::Worktree));
+         assert!(input.model.is_none());
++        assert!(input.reasoning_effort.is_none());
+         assert!(input.capability_mode.is_none());
+     }
+ 
+     #[test]
+-    fn task_tool_input_schema_includes_model() {
++    fn task_tool_input_schema_includes_runtime_overrides() {
+         let schema = serde_json::to_value(schemars::schema_for!(TaskToolInput)).unwrap();
+         assert_eq!(
+             schema["properties"]["model"]["description"],
+@@ -1642,6 +1677,12 @@ mod tests {
+              agent. Do not pass if resume_from is set (prior model will be used). Only choose \
+              an explicit model when the user directly requests it."
+         );
++        assert_eq!(
++            schema["properties"]["reasoning_effort"]["description"],
++            "Optional reasoning effort for this agent. Supported values are: none, minimal, low, \
++             medium, high, xhigh, and max. If omitted, the subagent uses its configured or \
++             inherited reasoning effort."
++        );
+     }
+ 
+     #[test]
+@@ -1674,6 +1715,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: Some("test-model".into()),
++            reasoning_effort: Some("high".into()),
+             task_id: Some("task-123".into()),
+         };
+         let json = serde_json::to_string(&input).unwrap();
+@@ -1684,6 +1726,7 @@ mod tests {
+             "capability_mode is harness-only and must not round-trip through JSON"
+         );
+         assert_eq!(parsed.model.as_deref(), Some("test-model"));
++        assert_eq!(parsed.reasoning_effort.as_deref(), Some("high"));
+     }
+ 
+     #[test]
+@@ -1942,6 +1985,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         })
+         .unwrap();
+@@ -1991,6 +2035,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2027,6 +2072,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         };
+         let json = serde_json::to_string(&input).unwrap();
+@@ -2073,6 +2119,7 @@ mod tests {
+                 resume_from: Some("prev-id".into()),
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2139,6 +2186,7 @@ mod tests {
+                     resume_from: Some(sentinel.into()),
+                     cwd: None,
+                     model: None,
++                    reasoning_effort: None,
+                     task_id: None,
+                 },
+             )
+@@ -2185,6 +2233,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         };
+         let json = serde_json::to_string(&input).unwrap();
+@@ -2213,6 +2262,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("/tmp".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2267,6 +2317,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2317,6 +2368,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("null".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2367,6 +2419,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("  ".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2420,6 +2473,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("/nonexistent/path/that/does/not/exist".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2454,6 +2508,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("/nonexistent/path/that/does/not/exist".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2509,6 +2564,7 @@ mod tests {
+                     resume_from: None,
+                     cwd: Some(sentinel.into()),
+                     model: None,
++                    reasoning_effort: None,
+                     task_id: None,
+                 },
+             )
+@@ -2562,6 +2618,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("/tmp".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2619,6 +2676,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("\"/tmp".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2671,6 +2729,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: Some("/tmp".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2719,6 +2778,7 @@ mod tests {
+                 resume_from: Some("prev-id".into()),
+                 cwd: Some("/tmp/some-dir".into()),
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             },
+         )
+@@ -2737,7 +2797,7 @@ mod tests {
+     // ── model override tests ─────────────────────────────────────
+ 
+     #[tokio::test]
+-    async fn model_threads_to_runtime_overrides() {
++    async fn model_and_reasoning_effort_thread_to_runtime_overrides() {
+         let (backend, mut rx) = make_backend();
+         let resources = resources_for_task(backend);
+         let shared = resources.into_shared();
+@@ -2753,23 +2813,18 @@ mod tests {
+                 request.runtime_overrides.model_override_provenance,
+                 ModelOverrideProvenance::Tool,
+             );
+-            assert!(request.runtime_overrides.reasoning_effort.is_none());
++            assert_eq!(
++                request.runtime_overrides.reasoning_effort.as_deref(),
++                Some("max"),
++                "explicit reasoning effort must be trimmed and reach SubagentRuntimeOverrides"
++            );
+             assert!(request.runtime_overrides.persona.is_none());
+-            let id = request.id.clone();
+-            request
+-                .result_tx
+-                .send(SubagentResult {
+-                    success: true,
+-                    output: "ok".into(),
+-                    subagent_id: id.clone(),
+-                    child_session_id: id,
+-                    ..Default::default()
+-                })
+-                .unwrap();
++            complete_spawn(request);
+         });
+ 
+         let mut input = task_input("general-purpose", false);
+         input.model = Some("test-model".into());
++        input.reasoning_effort = Some("  max  ".into());
+         let result = xai_tool_runtime::Tool::run(&TaskTool, test_ctx(shared), input)
+             .await
+             .unwrap();
+@@ -2780,6 +2835,103 @@ mod tests {
+         }
+     }
+ 
++    #[tokio::test]
++    async fn reasoning_effort_none_threads_to_runtime_overrides() {
++        let (backend, mut rx) = make_backend();
++        let resources = resources_for_task(backend);
++        let shared = resources.into_shared();
++
++        let handle = tokio::spawn(async move {
++            let request = unwrap_spawn(rx.recv().await.unwrap());
++            assert_eq!(
++                request.runtime_overrides.reasoning_effort.as_deref(),
++                Some("none")
++            );
++            complete_spawn(request);
++        });
++
++        let mut input = task_input("general-purpose", false);
++        input.reasoning_effort = Some("  NONE  ".into());
++        let result = xai_tool_runtime::Tool::run(&TaskTool, test_ctx(shared), input)
++            .await
++            .unwrap();
++        handle.await.unwrap();
++        match result {
++            ToolOutput::SubagentCompleted(sub) => assert!(sub.output.contains("ok")),
++            other => panic!("Expected SubagentCompleted, got {other:?}"),
++        }
++    }
++
++    #[tokio::test]
++    async fn invalid_reasoning_effort_is_rejected() {
++        let (backend, _rx) = make_backend();
++        let resources = resources_for_task(backend);
++        let mut input = task_input("general-purpose", false);
++        input.reasoning_effort = Some("turbo".into());
++
++        let error =
++            xai_tool_runtime::Tool::run(&TaskTool, test_ctx(resources.into_shared()), input)
++                .await
++                .unwrap_err();
++
++        assert_eq!(
++            error.kind,
++            xai_tool_runtime::ToolErrorKind::InvalidArguments
++        );
++        assert!(
++            error.to_string().contains("Invalid reasoning_effort"),
++            "unexpected error: {error}"
++        );
++    }
++
++    #[tokio::test]
++    async fn reasoning_effort_placeholders_are_rejected() {
++        for placeholder in ["null", "undefined", "  NULL  ", "Undefined"] {
++            let (backend, _rx) = make_backend();
++            let resources = resources_for_task(backend);
++            let mut input = task_input("general-purpose", false);
++            input.reasoning_effort = Some(placeholder.into());
++
++            let error =
++                xai_tool_runtime::Tool::run(&TaskTool, test_ctx(resources.into_shared()), input)
++                    .await
++                    .unwrap_err();
++
++            assert_eq!(
++                error.kind,
++                xai_tool_runtime::ToolErrorKind::InvalidArguments,
++                "placeholder {placeholder:?}"
++            );
++            assert!(
++                error.to_string().contains("Invalid reasoning_effort"),
++                "unexpected error for {placeholder:?}: {error}"
++            );
++        }
++    }
++
++    #[tokio::test]
++    async fn blank_reasoning_effort_is_omitted() {
++        for blank in ["", "   "] {
++            let (backend, mut rx) = make_backend();
++            let resources = resources_for_task(backend);
++            let shared = resources.into_shared();
++
++            let handle = tokio::spawn(async move {
++                let request = unwrap_spawn(rx.recv().await.unwrap());
++                assert!(request.runtime_overrides.reasoning_effort.is_none());
++                complete_spawn(request);
++            });
++
++            let mut input = task_input("general-purpose", false);
++            input.reasoning_effort = Some(blank.into());
++            let result = xai_tool_runtime::Tool::run(&TaskTool, test_ctx(shared), input)
++                .await
++                .unwrap();
++            handle.await.unwrap();
++            assert!(matches!(result, ToolOutput::SubagentCompleted(_)));
++        }
++    }
++
+     #[tokio::test]
+     async fn omitted_model_stays_none_on_runtime_overrides() {
+         let (backend, mut rx) = make_backend();
+diff --git a/crates/codegen/xai-grok-workspace/src/permission/policy.rs b/crates/codegen/xai-grok-workspace/src/permission/policy.rs
+index f089f89..33e8c63 100644
+--- a/crates/codegen/xai-grok-workspace/src/permission/policy.rs
++++ b/crates/codegen/xai-grok-workspace/src/permission/policy.rs
+@@ -1157,6 +1157,7 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         }));
+ 
+diff --git a/crates/codegen/xai-grok-workspace/src/permission/types.rs b/crates/codegen/xai-grok-workspace/src/permission/types.rs
+index aeb7d4a..13e0ddf 100644
+--- a/crates/codegen/xai-grok-workspace/src/permission/types.rs
++++ b/crates/codegen/xai-grok-workspace/src/permission/types.rs
+@@ -816,6 +816,7 @@ mod tests {
+                 resume_from: None,
+                 cwd: None,
+                 model: None,
++                reasoning_effort: None,
+                 task_id: None,
+             })),
+             AccessKind::Edit(p) if p == "task:general-purpose"
+diff --git a/crates/common/xai-tool-types/src/lib.rs b/crates/common/xai-tool-types/src/lib.rs
+index fdd4e24..d955a07 100644
+--- a/crates/common/xai-tool-types/src/lib.rs
++++ b/crates/common/xai-tool-types/src/lib.rs
+@@ -15,12 +15,13 @@ pub use task::{
+     BuiltinSubagent, EXPLORE_PROMPT, EXPLORE_SUBAGENT, GENERAL_PURPOSE_PROMPT,
+     GENERAL_PURPOSE_SUBAGENT, KillTaskOutput, KillTaskResult, KillTaskToolInput,
+     KillTaskToolNaming, MAX_MULTI_WAIT_IDS, MAX_WAIT_BLOCK_MS_DEFAULT, MAX_WAIT_MS_PLACEHOLDER,
+-    MultiTaskOutputResult, PLAN_PROMPT, PLAN_SUBAGENT, SubagentCapabilityMode,
+-    SubagentCompletedOutput, SubagentDescriptor, SubagentIsolationMode, SubagentToolNaming,
+-    TaskOutputOutput, TaskOutputResult, TaskOutputToolInput, TaskOutputToolNaming, TaskToolInput,
+-    TaskToolNaming, WaitMode, WaitTasksToolInput, WaitTasksToolNaming, build_kill_task_description,
+-    build_task_description, build_task_output_description, build_wait_tasks_description,
+-    builtin_subagent_by_name, default_subagent_type, format_resume_footer,
++    MultiTaskOutputResult, PLAN_PROMPT, PLAN_SUBAGENT, REASONING_EFFORT_VALUES,
++    SubagentCapabilityMode, SubagentCompletedOutput, SubagentDescriptor, SubagentIsolationMode,
++    SubagentToolNaming, TaskOutputOutput, TaskOutputResult, TaskOutputToolInput,
++    TaskOutputToolNaming, TaskToolInput, TaskToolNaming, WaitMode, WaitTasksToolInput,
++    WaitTasksToolNaming, build_kill_task_description, build_task_description,
++    build_task_output_description, build_wait_tasks_description, builtin_subagent_by_name,
++    canonical_reasoning_effort, default_subagent_type, format_resume_footer,
+     format_subagent_auto_backgrounded, format_subagent_completed,
+     format_subagent_started_background, format_wait_cap_ms, is_not_sentinel, max_wait_block_ms,
+     resolve_task_ids, sanitize_optional_arg, should_continue_parent_work, task_output_waits,
+diff --git a/crates/common/xai-tool-types/src/task.rs b/crates/common/xai-tool-types/src/task.rs
+index 5696588..c8f7966 100644
+--- a/crates/common/xai-tool-types/src/task.rs
++++ b/crates/common/xai-tool-types/src/task.rs
+@@ -103,6 +103,15 @@ pub struct TaskToolInput {
+     #[serde(default, skip_serializing_if = "Option::is_none")]
+     pub model: Option<String>,
+ 
++    /// Optional reasoning effort for this subagent.
++    #[schemars(
++        description = "Optional reasoning effort for this agent. Supported values are: none, \
++            minimal, low, medium, high, xhigh, and max. If omitted, the subagent uses its \
++            configured or inherited reasoning effort."
++    )]
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub reasoning_effort: Option<String>,
++
+     /// Server-injected before execution. Becomes the subagent's session ID.
+     #[schemars(skip)]
+     #[serde(default)]
+@@ -114,6 +123,22 @@ pub fn default_subagent_type() -> String {
+     "general-purpose".to_string()
+ }
+ 
++pub const REASONING_EFFORT_VALUES: &str = "none, minimal, low, medium, high, xhigh, max";
++
++/// Return the canonical reasoning-effort token for a supported value.
++pub fn canonical_reasoning_effort(value: &str) -> Option<&'static str> {
++    match value.trim().to_ascii_lowercase().as_str() {
++        "none" => Some("none"),
++        "minimal" => Some("minimal"),
++        "low" => Some("low"),
++        "medium" => Some("medium"),
++        "high" => Some("high"),
++        "xhigh" => Some("xhigh"),
++        "max" => Some("max"),
++        _ => None,
++    }
++}
++
+ /// True when `s` is not a model-emitted placeholder (`""`, `"null"`, `"none"`,
+ /// `"undefined"`, or whitespace-only after trim).
+ #[inline]
+@@ -1390,11 +1415,28 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn task_tool_input_model_parses_explicit() {
+-        let input: TaskToolInput =
+-            serde_json::from_str(r#"{"description": "d", "prompt": "p", "model": "grok-3"}"#)
+-                .unwrap();
++    fn task_tool_input_runtime_overrides_parse_explicit() {
++        let input: TaskToolInput = serde_json::from_str(
++            r#"{"description": "d", "prompt": "p", "model": "grok-3", "reasoning_effort": "high"}"#,
++        )
++        .unwrap();
+         assert_eq!(input.model.as_deref(), Some("grok-3"));
++        assert_eq!(input.reasoning_effort.as_deref(), Some("high"));
++    }
++
++    #[test]
++    fn canonical_reasoning_effort_normalizes_supported_values() {
++        for value in ["none", "minimal", "low", "medium", "high", "xhigh", "max"] {
++            assert_eq!(canonical_reasoning_effort(value), Some(value));
++            assert_eq!(
++                canonical_reasoning_effort(&format!("  {}  ", value.to_ascii_uppercase())),
++                Some(value)
++            );
++        }
++        assert_eq!(canonical_reasoning_effort(""), None);
++        assert_eq!(canonical_reasoning_effort("null"), None);
++        assert_eq!(canonical_reasoning_effort("undefined"), None);
++        assert_eq!(canonical_reasoning_effort("turbo"), None);
+     }
+ 
+     #[test]
+@@ -1409,10 +1451,12 @@ mod tests {
+             resume_from: None,
+             cwd: None,
+             model: None,
++            reasoning_effort: None,
+             task_id: None,
+         };
+         let value = serde_json::to_value(&input).unwrap();
+         assert!(value.get("model").is_none());
++        assert!(value.get("reasoning_effort").is_none());
+         assert!(value.get("capability_mode").is_none());
+     }
+ 
