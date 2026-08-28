@@ -64,13 +64,22 @@ touched_files_are_clean() {
 }
 
 restore_source() {
-  git reset --quiet HEAD -- "${TOUCHED_FILES[@]}"
-  git checkout -- "${TOUCHED_FILES[@]}"
+  git reset --quiet HEAD -- "${TOUCHED_FILES[@]}" || true
+  git checkout -- "${TOUCHED_FILES[@]}" || true
   if ! touched_files_are_clean; then
-    printf 'Build succeeded but source could not be restored to a clean tree.\n' >&2
-    exit 1
+    printf 'Source could not be restored to a clean tree.\n' >&2
+    return 1
   fi
   printf 'Source restored to a clean tree.\n'
+}
+
+restore_source_on_exit() {
+  local status=$?
+  trap - EXIT
+  if ! restore_source && ((status == 0)); then
+    status=1
+  fi
+  exit "$status"
 }
 
 if [[ ! -f "$PATCH" ]]; then
@@ -92,6 +101,8 @@ if git apply --reverse --check "$PATCH" >/dev/null 2>&1; then
       printf 'Commit, stash, or revert those changes, then run this script again.\n' >&2
       exit 1
     fi
+    rm -f "$CURRENT_DIFF" || true
+    trap - EXIT
   fi
 elif ! touched_files_are_clean; then
   printf 'Cannot apply patch: files changed by the patch have uncommitted modifications.\n' >&2
@@ -117,6 +128,8 @@ else
   exit 1
 fi
 
+trap restore_source_on_exit EXIT
+
 cargo test -p xai-tool-types task_tool_input_runtime_overrides_parse_explicit
 cargo test -p xai-tool-types canonical_reasoning_effort_normalizes_supported_values
 cargo test -p xai-grok-tools task_tool_input_schema_includes_runtime_overrides
@@ -139,5 +152,6 @@ cargo test -p xai-grok-workspace permission::types::tests::write_scoped_and_dyna
 cargo test -p xai-grok-workspace permission::policy::tests::write_scoped_access_respects_edit_deny_and_not_read_allow
 cargo build -p xai-grok-pager-bin --release
 
+trap - EXIT
 restore_source
 printf 'Release binary built at %s/target/release/xai-grok-pager\n' "$REPO_ROOT"
