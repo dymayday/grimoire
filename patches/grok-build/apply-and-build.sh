@@ -42,6 +42,7 @@ TOUCHED_FILES=(
   "crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs"
   "crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs"
   "crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs"
+  "crates/codegen/xai-grok-shell/src/upload/memory_tests.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs"

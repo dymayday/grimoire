@@ -1194,6 +1194,22 @@ index e870023d..6e42c8ca 100644
              resumed_from: Some("source-agent-id".to_string()),
              workflow_run_id: None,
          },
+diff --git a/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs b/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
+index c43ce4bc..dac48d85 100644
+--- a/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
+@@ -2,10 +2,7 @@
+ //! build, per-cwd in-flight sharing, flush-deadline detach, and manifest
+ //! terminal records.
+ use super::*;
+-use crate::upload::trace::tests::{
+-    assert_artifact_failed, read_tar_gz_entries, test_prompt_trace_ctx,
+-};
+-use crate::upload::trace::{ArchiveBuildFault, set_archive_build_fault, spawn_upload_queue};
++use crate::upload::trace::tests::read_tar_gz_entries;
+ #[tokio::test(flavor = "current_thread")]
+ #[serial_test::serial(archive_build_fault)]
+ async fn memory_archive_build_archives_seeded_root_off_runtime() {
 diff --git a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs b/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
 index 787b0574..9d0ba55a 100644
 --- a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
