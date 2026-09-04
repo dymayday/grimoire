@@ -7,7 +7,12 @@ Source of truth for local grok-build patches. grok-build keeps
 
 `spawn-subagent-reasoning-effort.patch` adds an optional
 `reasoning_effort` override on `spawn_subagent` and shows
-`model · reasoning effort` in the pager subagent UI.
+`model · reasoning effort` in three pager surfaces:
+
+- Tasks pane overlay (`Ctrl+G`): far right, left of elapsed time
+- Tasks pane searchable label: same string, for search
+- Fullscreen subagent title bar: after the description, when effort
+  is present. Meta is kept first if the title is truncated.
 
 `apply-and-build.sh` applies the patch, runs the related tests, builds
 `xai-grok-pager` in release, then restores the grok-build tree.
