@@ -41,19 +41,29 @@ TOUCHED_FILES=(
   "crates/codegen/xai-grok-shell/src/extensions/notification.rs"
   "crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs"
   "crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs"
+  "crates/codegen/xai-grok-shell/src/session/acp_session_impl/workflow.rs"
   "crates/codegen/xai-grok-shell/src/session/storage/jsonl/tests.rs"
+  "crates/codegen/xai-grok-shell/src/session/workflow/host_service.rs"
+  "crates/codegen/xai-grok-shell/src/session/workflow/manager.rs"
+  "crates/codegen/xai-grok-shell/src/session/workflow/notify.rs"
+  "crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs"
   "crates/codegen/xai-grok-shell/src/upload/memory_tests.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs"
+  "crates/codegen/xai-grok-pager/src/app/acp_handler/workflow_ingest.rs"
   "crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs"
   "crates/codegen/xai-grok-pager/src/app/agent_view/render.rs"
   "crates/codegen/xai-grok-pager/src/app/agent_view/session.rs"
+  "crates/codegen/xai-grok-pager/src/app/agent_view/workflows_overlay.rs"
+  "crates/codegen/xai-grok-pager/src/app/app_view_tests.rs"
   "crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs"
   "crates/codegen/xai-grok-pager/src/app/subagent.rs"
   "crates/codegen/xai-grok-pager/src/app/subagent_format_tests.rs"
   "crates/codegen/xai-grok-pager/src/views/dashboard/row.rs"
   "crates/codegen/xai-grok-pager/src/views/tasks_pane.rs"
+  "crates/codegen/xai-grok-pager/src/views/workflows.rs"
+  "crates/codegen/xai-grok-pager/docs/user-guide/04-slash-commands.md"
   "crates/codegen/xai-grok-pager/docs/user-guide/16-subagents.md"
 )
 
@@ -149,6 +159,11 @@ cargo test -p xai-grok-pager --lib -- subagent_title_tests
 cargo test -p xai-grok-pager --lib -- render_subagent_overlay_shows_model_and_effort
 cargo test -p xai-grok-pager --lib -- render_subagent_overlay_keeps_model_when_effort_is_absent
 cargo test -p xai-grok-pager --lib -- entry_label_includes_model_and_effort
+cargo test -p xai-grok-pager --lib -- workflow_ingest_stores_agent_reasoning_effort
+cargo test -p xai-grok-pager --lib -- roster_shows_model_and_effort
+cargo test -p xai-grok-pager --lib -- roster_keeps_model_when_effort_is_absent
+cargo test -p xai-grok-shell --lib -- agent_info_includes_reasoning_effort
+cargo test -p xai-grok-shell --lib -- launch_effort_applies_to_children_and_child_override_wins
 cargo test -p xai-grok-workspace permission::types::tests::write_scoped_and_dynamic_inputs_map_to_edit_not_read
 cargo test -p xai-grok-workspace permission::policy::tests::write_scoped_access_respects_edit_deny_and_not_read_allow
 cargo build -p xai-grok-pager-bin --release
