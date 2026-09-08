@@ -19,8 +19,9 @@ Source of truth for local grok-build patches. grok-build keeps
 `apply-and-build.sh` applies the patch, runs the related tests, builds
 `xai-grok-pager` in release, then restores the grok-build tree.
 
-Refreshed against grok-build `SOURCE_REV`
-`a549186d9d39311f2d3ee4208db62af8c65aa476`.
+Refreshed against grok-build HEAD
+`75810042ca2762aa0b0fa17864f3f68823ccbea5`
+(`SOURCE_REV` `eb4a894da8fb7bcd8d8f398a9d909a7868a4fcf1`).
 
 ## Install
 
