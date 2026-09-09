@@ -40,10 +40,10 @@ index a5361b7b..7ae8909a 100644
  - Subagent views are largely observational — you generally cannot send new top-level prompts directly to them the way you can a parent session.
  
 diff --git a/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs b/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
-index 65b39d34..f36456ef 100644
+index d90b3ba1..3367119b 100644
 --- a/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs
-@@ -470,6 +470,7 @@ pub(super) fn handle_session_notification_with_origin(
+@@ -465,6 +465,7 @@ pub(super) fn handle_session_notification_with_origin(
              persona,
              role,
              model,
@@ -51,7 +51,7 @@ index 65b39d34..f36456ef 100644
              effective_context_source,
              resumed_from,
              capability_mode,
-@@ -553,6 +554,7 @@ pub(super) fn handle_session_notification_with_origin(
+@@ -548,6 +549,7 @@ pub(super) fn handle_session_notification_with_origin(
                  persona: persona.map(Arc::from),
                  role: role.map(Arc::from),
                  model: model.map(Arc::from),
@@ -60,7 +60,7 @@ index 65b39d34..f36456ef 100644
                  resumed_from: resumed_from.map(Arc::from),
                  capability_mode: capability_mode.map(Arc::from),
 diff --git a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
-index 92eb124f..2f872d1b 100644
+index 005fa72c..8307901d 100644
 --- a/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs
 @@ -86,6 +86,7 @@ pub(super) fn make_subagent_info(child_sid: &str) -> SubagentInfo {
@@ -71,7 +71,7 @@ index 92eb124f..2f872d1b 100644
              context_source: None,
              resumed_from: None,
              capability_mode: None,
-@@ -1561,6 +1562,7 @@ pub(super) fn test_subagent_spawned_for_workflow(
+@@ -1528,6 +1529,7 @@ pub(super) fn test_subagent_spawned_for_workflow(
          persona: None,
          role: None,
          model: None,
@@ -182,10 +182,10 @@ index 7ff9c06c..de8686d0 100644
                      tokens_used: a.tokens_used,
                      duration_ms: a.duration_ms,
 diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
-index ede1f803..4ffdf923 100644
+index f6c4d54e..609a8c9b 100644
 --- a/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/agent_view/mod.rs
-@@ -2272,6 +2272,7 @@ pub(crate) mod test_fixtures {
+@@ -2268,6 +2268,7 @@ pub(crate) mod test_fixtures {
                  persona: None,
                  role: None,
                  model: None,
@@ -194,7 +194,7 @@ index ede1f803..4ffdf923 100644
                  resumed_from: None,
                  capability_mode: None,
 diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
-index c98a36c0..6703eb80 100644
+index ab545d38..e52f3d42 100644
 --- a/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/agent_view/render.rs
 @@ -8,7 +8,7 @@ use super::{
@@ -437,10 +437,10 @@ index c98a36c0..6703eb80 100644
  mod overlay_post_flush_tests {
      use super::super::test_fixtures::make_agent;
 diff --git a/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs b/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
-index e719008b..198c9677 100644
+index a1435578..99297976 100644
 --- a/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/agent_view/session.rs
-@@ -2025,6 +2025,7 @@ mod resolve_turn_activity_tests {
+@@ -2074,6 +2074,7 @@ mod resolve_turn_activity_tests {
                      persona: None,
                      role: None,
                      model: None,
@@ -469,10 +469,10 @@ index 66ed8f03..612bfea5 100644
                  tokens_used: 0,
                  duration_ms: 0,
 diff --git a/crates/codegen/xai-grok-pager/src/app/app_view_tests.rs b/crates/codegen/xai-grok-pager/src/app/app_view_tests.rs
-index d28549b1..15139ea8 100644
+index 8914994a..0f3fb735 100644
 --- a/crates/codegen/xai-grok-pager/src/app/app_view_tests.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/app_view_tests.rs
-@@ -4757,6 +4757,7 @@ fn opening_workflow_transcript_cancels_pending_scroll_stream() {
+@@ -4758,6 +4758,7 @@ fn opening_workflow_transcript_cancels_pending_scroll_stream() {
                  label: "researcher".to_owned(),
                  phase: Some("Research".to_owned()),
                  model: None,
@@ -481,10 +481,10 @@ index d28549b1..15139ea8 100644
                  tokens_used: 0,
                  duration_ms: 0,
 diff --git a/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs b/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
-index e091e423..0a2fa841 100644
+index 39539273..a3cc53d4 100644
 --- a/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
 +++ b/crates/codegen/xai-grok-pager/src/app/dispatch/tests/mod.rs
-@@ -406,6 +406,7 @@ fn make_test_subagent(child_sid: &str, sa_id: &str) -> crate::app::subagent::Sub
+@@ -408,6 +408,7 @@ fn make_test_subagent(child_sid: &str, sa_id: &str) -> crate::app::subagent::Sub
              persona: None,
              role: None,
              model: None,
@@ -978,7 +978,7 @@ index e3cd4c7b..7b0b5f9e 100644
              tokens_used: 0,
              duration_ms: 0,
 diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
-index da452506..7d3bbcb6 100644
+index 0a8d4e69..d5228d08 100644
 --- a/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
 +++ b/crates/codegen/xai-grok-shell/src/agent/subagent/handle_request.rs
 @@ -13,7 +13,7 @@ use super::start_artifact_publication::{
@@ -990,7 +990,7 @@ index da452506..7d3bbcb6 100644
  use xai_grok_telemetry::region;
  use xai_grok_telemetry::region::Parent;
  use xai_grok_telemetry::subagent_spawn::{SubagentSpawnPhase, phase_region};
-@@ -293,6 +293,72 @@ impl WakePersistenceContext {
+@@ -299,6 +299,72 @@ impl WakePersistenceContext {
          }
      }
  }
@@ -1063,7 +1063,7 @@ index da452506..7d3bbcb6 100644
  pub(super) fn task_model_override_error(
      requested: Option<&str>,
      provenance: ModelOverrideProvenance,
-@@ -545,6 +611,85 @@ pub(crate) async fn run_shell_child(
+@@ -537,6 +603,85 @@ pub(crate) async fn run_shell_child(
      ) {
          return child_run_output(failure_result(&request, &error), completion_data, None);
      }
@@ -1143,13 +1143,13 @@ index da452506..7d3bbcb6 100644
 +            &mut effective_sampling_config,
 +            Some(eff),
 +            &acp::SessionId::new(request.id.clone()),
-+            crate::agent::mvp_agent::reasoning_effort::EffortTarget::NewSession,
++            crate::sampling::EffortTarget::NewSession,
 +        );
 +    }
      let worktree_path = if let Some(ref source) = resume_source {
          if effective_runtime.isolation != xai_tool_types::SubagentIsolationMode::None
              && source.worktree_path.is_none()
-@@ -751,82 +896,7 @@ pub(crate) async fn run_shell_child(
+@@ -742,82 +887,7 @@ pub(crate) async fn run_shell_child(
              )
          });
      }
@@ -1218,7 +1218,7 @@ index da452506..7d3bbcb6 100644
 -                &mut effective_sampling_config,
 -                Some(eff),
 -                &acp::SessionId::new(request.id.clone()),
--                crate::agent::mvp_agent::reasoning_effort::EffortTarget::NewSession,
+-                crate::sampling::EffortTarget::NewSession,
 -            ),
 -            Err(err) => {
 -                tracing::warn!(
@@ -1232,7 +1232,7 @@ index da452506..7d3bbcb6 100644
      if effective_sampling_config.conversation_group_id.is_none() {
          let inherited_group_id = if let Some(parent_chat_state) = ctx.parent_chat_state.as_ref() {
              parent_chat_state
-@@ -997,6 +1067,9 @@ pub(crate) async fn run_shell_child(
+@@ -988,6 +1058,9 @@ pub(crate) async fn run_shell_child(
          persona: effective_runtime.persona.clone(),
          role: effective_runtime.role_name.clone(),
          model: Some(effective_model_id.0.to_string()),
@@ -1243,10 +1243,10 @@ index da452506..7d3bbcb6 100644
          workflow_run_id: request.owner.workflow_run_id().map(str::to_string),
          agent_address: advertised_address.clone(),
 diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/spawn.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/spawn.rs
-index e252a9aa..033896fd 100644
+index 3da715ed..19fba34d 100644
 --- a/crates/codegen/xai-grok-shell/src/agent/subagent/spawn.rs
 +++ b/crates/codegen/xai-grok-shell/src/agent/subagent/spawn.rs
-@@ -629,6 +629,7 @@ mod address_tests {
+@@ -608,6 +608,7 @@ mod address_tests {
              persona: None,
              role: None,
              model: None,
@@ -1255,12 +1255,12 @@ index e252a9aa..033896fd 100644
              workflow_run_id: None,
              agent_address,
 diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
-index cd895ac2..dad1a6e7 100644
+index 1d9f49c6..45053442 100644
 --- a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
 +++ b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/mod.rs
-@@ -18,7 +18,10 @@ use super::handle_request::{
-     mark_child_usage_not_applied_with_fallback, reparent_surviving_child_tasks,
-     resolve_child_model, take_child_streaming_partial, take_child_turn_messages,
+@@ -19,7 +19,10 @@ use super::handle_request::{
+     reparent_surviving_child_tasks, resolve_child_model, take_child_streaming_partial,
+     take_child_turn_messages,
  };
 +use crate::agent::subagent::handle_request::apply_reasoning_effort_override;
  use crate::test_support::lsp_runtime::{ctx_with_toggle, test_gateway_with_receiver};
@@ -1269,7 +1269,7 @@ index cd895ac2..dad1a6e7 100644
  use xai_grok_subagent_resolution::resolve_effective_overrides;
  use xai_grok_tools::implementations::grok_build::task::coordinator::{
      ChildCompletion, CompletionDisposition,
-@@ -31,6 +34,120 @@ fn test_snapshot(
+@@ -32,6 +35,120 @@ fn test_snapshot(
  ) -> SubagentSnapshot {
      terminal_snapshot(request, result, None, None, 0)
  }
@@ -1388,10 +1388,10 @@ index cd895ac2..dad1a6e7 100644
 +}
 +
  #[test]
- fn canonical_total_tokens_does_not_double_count_reasoning() {
-     let totals = xai_chat_state::UsageTotals {
+ fn v2_disables_legacy_agent_memory_scope() {
+     let scope = Some(xai_grok_agent::config::MemoryScope::Project);
 diff --git a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
-index 2c0a27d1..86193b29 100644
+index 95326a25..69c4a6c0 100644
 --- a/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
 +++ b/crates/codegen/xai-grok-shell/src/agent/subagent/tests/rest.rs
 @@ -2081,7 +2081,8 @@ fn notification_subagent_spawned_includes_resumed_from() {
@@ -1431,10 +1431,10 @@ index 2c0a27d1..86193b29 100644
  #[test]
  fn upload_ref_includes_resumed_from() {
 diff --git a/crates/codegen/xai-grok-shell/src/extensions/notification.rs b/crates/codegen/xai-grok-shell/src/extensions/notification.rs
-index 4f049d12..cefa5ee7 100644
+index cb7e5ab0..54966257 100644
 --- a/crates/codegen/xai-grok-shell/src/extensions/notification.rs
 +++ b/crates/codegen/xai-grok-shell/src/extensions/notification.rs
-@@ -27,6 +27,8 @@ pub struct WorkflowAgentInfo {
+@@ -28,6 +28,8 @@ pub struct WorkflowAgentInfo {
      pub phase: Option<String>,
      #[serde(default, skip_serializing_if = "Option::is_none")]
      pub model: Option<String>,
@@ -1443,7 +1443,7 @@ index 4f049d12..cefa5ee7 100644
      pub state: String,
      #[serde(default)]
      pub tokens_used: u64,
-@@ -667,6 +669,9 @@ pub enum SessionUpdate {
+@@ -699,6 +701,9 @@ pub enum SessionUpdate {
          /// Effective model ID used by the subagent (may differ from the parent).
          #[serde(default, skip_serializing_if = "Option::is_none")]
          model: Option<String>,
@@ -1453,7 +1453,7 @@ index 4f049d12..cefa5ee7 100644
          /// ID of the source subagent this session was resumed from.
          #[serde(default, skip_serializing_if = "Option::is_none")]
          resumed_from: Option<String>,
-@@ -1547,6 +1552,7 @@ mod tests {
+@@ -1594,6 +1599,7 @@ mod tests {
              persona: None,
              role: None,
              model: None,
@@ -1461,7 +1461,7 @@ index 4f049d12..cefa5ee7 100644
              resumed_from: None,
              workflow_run_id: None,
              agent_address: None,
-@@ -1603,6 +1609,7 @@ mod tests {
+@@ -1650,6 +1656,7 @@ mod tests {
              persona: None,
              role: None,
              model: None,
@@ -1470,10 +1470,10 @@ index 4f049d12..cefa5ee7 100644
              workflow_run_id: None,
              agent_address: Some("opaque-address".into()),
 diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
-index b15a7fa9..db53d412 100644
+index 469b7e9b..9b72fc90 100644
 --- a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
 +++ b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/tool_calls.rs
-@@ -3377,6 +3377,7 @@ mod plan_mode_edit_gate_tests {
+@@ -3405,6 +3405,7 @@ mod plan_mode_edit_gate_tests {
                      resume_from: None,
                      cwd: None,
                      model: None,
@@ -1494,10 +1494,10 @@ index ababf95c..a42e9666 100644
          workflow_run_id: None,
          agent_address: None,
 diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/workflow.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/workflow.rs
-index 0ed6f632..6531fc66 100644
+index 13db8c0e..2e0da3ef 100644
 --- a/crates/codegen/xai-grok-shell/src/session/acp_session_impl/workflow.rs
 +++ b/crates/codegen/xai-grok-shell/src/session/acp_session_impl/workflow.rs
-@@ -568,6 +568,7 @@ mod overview_tests {
+@@ -586,6 +586,7 @@ mod overview_tests {
              label: id.into(),
              phase: None,
              model: None,
@@ -1550,10 +1550,10 @@ index d9a426b9..9c62f530 100644
                  tokens_used: 0,
                  duration_ms: 0,
 diff --git a/crates/codegen/xai-grok-shell/src/session/workflow/manager.rs b/crates/codegen/xai-grok-shell/src/session/workflow/manager.rs
-index 48d9b4b8..74bbc96b 100644
+index 5222205b..10c29e68 100644
 --- a/crates/codegen/xai-grok-shell/src/session/workflow/manager.rs
 +++ b/crates/codegen/xai-grok-shell/src/session/workflow/manager.rs
-@@ -1508,7 +1508,7 @@ mod tests {
+@@ -1563,7 +1563,7 @@ mod tests {
                  .into(),
          )
          .unwrap();
@@ -1562,7 +1562,7 @@ index 48d9b4b8..74bbc96b 100644
              .launch(
                  resolved,
                  LaunchSpec {
-@@ -1529,6 +1529,23 @@ mod tests {
+@@ -1584,6 +1584,23 @@ mod tests {
              );
              complete_spawn(req);
          }
@@ -1638,10 +1638,10 @@ index a1228acc..3e9da5b8 100644
 +    }
  }
 diff --git a/crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs b/crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs
-index 8515f267..67c21ef1 100644
+index f0fe857a..5d70a786 100644
 --- a/crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs
 +++ b/crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs
-@@ -115,6 +115,8 @@ pub struct WorkflowAgentRow {
+@@ -127,6 +127,8 @@ pub struct WorkflowAgentRow {
      pub phase: Option<String>,
      #[serde(default, skip_serializing_if = "Option::is_none")]
      pub model: Option<String>,
@@ -1650,7 +1650,7 @@ index 8515f267..67c21ef1 100644
      pub state: String,
      #[serde(default)]
      pub tokens_used: u64,
-@@ -807,6 +809,7 @@ mod tests {
+@@ -833,6 +835,7 @@ mod tests {
                  label: "worker".into(),
                  phase: None,
                  model: None,
@@ -1658,7 +1658,7 @@ index 8515f267..67c21ef1 100644
                  state: "running".into(),
                  tokens_used: 0,
                  duration_ms: 0,
-@@ -844,6 +847,7 @@ mod tests {
+@@ -870,6 +873,7 @@ mod tests {
                  label: "worker".into(),
                  phase: None,
                  model: None,
@@ -1666,7 +1666,7 @@ index 8515f267..67c21ef1 100644
                  state: "running".into(),
                  tokens_used: 0,
                  duration_ms: 0,
-@@ -889,6 +893,7 @@ mod tests {
+@@ -915,6 +919,7 @@ mod tests {
                  label: "worker".into(),
                  phase: None,
                  model: None,
@@ -1674,7 +1674,7 @@ index 8515f267..67c21ef1 100644
                  state: "running".into(),
                  tokens_used: 0,
                  duration_ms: 0,
-@@ -1274,6 +1279,7 @@ mod tests {
+@@ -1300,6 +1305,7 @@ mod tests {
                  label: "scanner".into(),
                  phase: None,
                  model: None,
@@ -1682,27 +1682,11 @@ index 8515f267..67c21ef1 100644
                  state: "running".into(),
                  tokens_used: 0,
                  duration_ms: 0,
-diff --git a/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs b/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
-index c43ce4bc..dac48d85 100644
---- a/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
-+++ b/crates/codegen/xai-grok-shell/src/upload/memory_tests.rs
-@@ -2,10 +2,7 @@
- //! build, per-cwd in-flight sharing, flush-deadline detach, and manifest
- //! terminal records.
- use super::*;
--use crate::upload::trace::tests::{
--    assert_artifact_failed, read_tar_gz_entries, test_prompt_trace_ctx,
--};
--use crate::upload::trace::{ArchiveBuildFault, set_archive_build_fault, spawn_upload_queue};
-+use crate::upload::trace::tests::read_tar_gz_entries;
- #[tokio::test(flavor = "current_thread")]
- #[serial_test::serial(archive_build_fault)]
- async fn memory_archive_build_archives_seeded_root_off_runtime() {
 diff --git a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs b/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
-index 1443181c..d21b9872 100644
+index 0a0ff077..7d0d3791 100644
 --- a/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
 +++ b/crates/codegen/xai-grok-tools/src/implementations/grok_build/task/mod.rs
-@@ -459,6 +459,20 @@ impl xai_tool_runtime::Tool for TaskTool {
+@@ -450,6 +450,20 @@ impl xai_tool_runtime::Tool for TaskTool {
              model
          };
  
@@ -1723,7 +1707,7 @@ index 1443181c..d21b9872 100644
          // Treat blank/empty/"null" cwd as absent (models sometimes emit these).
          // Also strip stray surrounding quote characters and expand `~`.
          let cwd = input.cwd.as_deref().and_then(sanitize_cwd_value);
-@@ -609,7 +623,7 @@ impl xai_tool_runtime::Tool for TaskTool {
+@@ -600,7 +614,7 @@ impl xai_tool_runtime::Tool for TaskTool {
              runtime_overrides: SubagentRuntimeOverrides {
                  model,
                  model_override_provenance: ModelOverrideProvenance::Tool,
@@ -1732,7 +1716,7 @@ index 1443181c..d21b9872 100644
                  persona: None,
                  // JSON cannot set this field. Compat-harness adapters still
                  // populate it in-process; model-facing spawns stay `None`.
-@@ -865,6 +879,7 @@ mod tests {
+@@ -856,6 +870,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1740,7 +1724,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -926,6 +941,7 @@ mod tests {
+@@ -917,6 +932,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1748,7 +1732,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -960,6 +976,7 @@ mod tests {
+@@ -951,6 +967,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1756,7 +1740,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -991,6 +1008,7 @@ mod tests {
+@@ -982,6 +999,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1764,7 +1748,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -1049,6 +1067,7 @@ mod tests {
+@@ -1040,6 +1058,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1772,7 +1756,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -1105,6 +1124,7 @@ mod tests {
+@@ -1096,6 +1115,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1780,7 +1764,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -1148,6 +1168,7 @@ mod tests {
+@@ -1139,6 +1159,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1788,7 +1772,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -1256,6 +1277,7 @@ mod tests {
+@@ -1247,6 +1268,7 @@ mod tests {
              resume_from: None,
              cwd: None,
              model: None,
@@ -1796,7 +1780,7 @@ index 1443181c..d21b9872 100644
              task_id: None,
          }
      }
-@@ -1270,6 +1292,18 @@ mod tests {
+@@ -1261,6 +1283,18 @@ mod tests {
          resources
      }
  
@@ -1815,7 +1799,7 @@ index 1443181c..d21b9872 100644
      /// Seed `chat_history.jsonl` so leftover-parent detection can fire.
      fn resources_with_parent_exec(
          backend: SubagentBackendResource,
-@@ -1840,11 +1874,12 @@ mod tests {
+@@ -1831,11 +1865,12 @@ mod tests {
                  .unwrap();
          assert_eq!(input.isolation, Some(SubagentIsolationMode::Worktree));
          assert!(input.model.is_none());
@@ -1829,7 +1813,7 @@ index 1443181c..d21b9872 100644
          let schema = serde_json::to_value(schemars::schema_for!(TaskToolInput)).unwrap();
          assert_eq!(
              schema["properties"]["model"]["description"],
-@@ -1853,6 +1888,12 @@ mod tests {
+@@ -1844,6 +1879,12 @@ mod tests {
               agent. Do not pass if resume_from is set (prior model will be used). Only choose \
               an explicit model when the user directly requests it."
          );
@@ -1842,7 +1826,7 @@ index 1443181c..d21b9872 100644
      }
  
      #[test]
-@@ -1885,6 +1926,7 @@ mod tests {
+@@ -1876,6 +1917,7 @@ mod tests {
              resume_from: None,
              cwd: None,
              model: Some("test-model".into()),
@@ -1850,7 +1834,7 @@ index 1443181c..d21b9872 100644
              task_id: Some("task-123".into()),
          };
          let json = serde_json::to_string(&input).unwrap();
-@@ -1895,6 +1937,7 @@ mod tests {
+@@ -1886,6 +1928,7 @@ mod tests {
              "capability_mode is harness-only and must not round-trip through JSON"
          );
          assert_eq!(parsed.model.as_deref(), Some("test-model"));
@@ -1858,7 +1842,7 @@ index 1443181c..d21b9872 100644
      }
  
      #[test]
-@@ -2153,6 +2196,7 @@ mod tests {
+@@ -2144,6 +2187,7 @@ mod tests {
              resume_from: None,
              cwd: None,
              model: None,
@@ -1866,7 +1850,7 @@ index 1443181c..d21b9872 100644
              task_id: None,
          })
          .unwrap();
-@@ -2202,6 +2246,7 @@ mod tests {
+@@ -2193,6 +2237,7 @@ mod tests {
                  resume_from: None,
                  cwd: None,
                  model: None,
@@ -1874,7 +1858,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2238,6 +2283,7 @@ mod tests {
+@@ -2229,6 +2274,7 @@ mod tests {
              resume_from: None,
              cwd: None,
              model: None,
@@ -1882,7 +1866,7 @@ index 1443181c..d21b9872 100644
              task_id: None,
          };
          let json = serde_json::to_string(&input).unwrap();
-@@ -2284,6 +2330,7 @@ mod tests {
+@@ -2275,6 +2321,7 @@ mod tests {
                  resume_from: Some("prev-id".into()),
                  cwd: None,
                  model: None,
@@ -1890,7 +1874,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2350,6 +2397,7 @@ mod tests {
+@@ -2341,6 +2388,7 @@ mod tests {
                      resume_from: Some(sentinel.into()),
                      cwd: None,
                      model: None,
@@ -1898,7 +1882,7 @@ index 1443181c..d21b9872 100644
                      task_id: None,
                  },
              )
-@@ -2396,6 +2444,7 @@ mod tests {
+@@ -2387,6 +2435,7 @@ mod tests {
              resume_from: None,
              cwd: None,
              model: None,
@@ -1906,7 +1890,7 @@ index 1443181c..d21b9872 100644
              task_id: None,
          };
          let json = serde_json::to_string(&input).unwrap();
-@@ -2424,6 +2473,7 @@ mod tests {
+@@ -2415,6 +2464,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("/tmp".into()),
                  model: None,
@@ -1914,7 +1898,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2478,6 +2528,7 @@ mod tests {
+@@ -2469,6 +2519,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("".into()),
                  model: None,
@@ -1922,7 +1906,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2528,6 +2579,7 @@ mod tests {
+@@ -2519,6 +2570,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("null".into()),
                  model: None,
@@ -1930,7 +1914,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2578,6 +2630,7 @@ mod tests {
+@@ -2569,6 +2621,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("  ".into()),
                  model: None,
@@ -1938,7 +1922,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2631,6 +2684,7 @@ mod tests {
+@@ -2622,6 +2675,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("/nonexistent/path/that/does/not/exist".into()),
                  model: None,
@@ -1946,7 +1930,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2665,6 +2719,7 @@ mod tests {
+@@ -2656,6 +2710,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("/nonexistent/path/that/does/not/exist".into()),
                  model: None,
@@ -1954,7 +1938,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2720,6 +2775,7 @@ mod tests {
+@@ -2711,6 +2766,7 @@ mod tests {
                      resume_from: None,
                      cwd: Some(sentinel.into()),
                      model: None,
@@ -1962,7 +1946,7 @@ index 1443181c..d21b9872 100644
                      task_id: None,
                  },
              )
-@@ -2773,6 +2829,7 @@ mod tests {
+@@ -2764,6 +2820,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("/tmp".into()),
                  model: None,
@@ -1970,7 +1954,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2830,6 +2887,7 @@ mod tests {
+@@ -2821,6 +2878,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("\"/tmp".into()),
                  model: None,
@@ -1978,7 +1962,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2882,6 +2940,7 @@ mod tests {
+@@ -2873,6 +2931,7 @@ mod tests {
                  resume_from: None,
                  cwd: Some("/tmp".into()),
                  model: None,
@@ -1986,7 +1970,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2930,6 +2989,7 @@ mod tests {
+@@ -2921,6 +2980,7 @@ mod tests {
                  resume_from: Some("prev-id".into()),
                  cwd: Some("/tmp/some-dir".into()),
                  model: None,
@@ -1994,7 +1978,7 @@ index 1443181c..d21b9872 100644
                  task_id: None,
              },
          )
-@@ -2948,7 +3008,7 @@ mod tests {
+@@ -2939,7 +2999,7 @@ mod tests {
      // ── model override tests ─────────────────────────────────────
  
      #[tokio::test]
@@ -2003,7 +1987,7 @@ index 1443181c..d21b9872 100644
          let (backend, mut rx) = make_backend();
          let resources = resources_for_task(backend);
          let shared = resources.into_shared();
-@@ -2964,23 +3024,45 @@ mod tests {
+@@ -2955,23 +3015,45 @@ mod tests {
                  request.runtime_overrides.model_override_provenance,
                  ModelOverrideProvenance::Tool,
              );
@@ -2061,7 +2045,7 @@ index 1443181c..d21b9872 100644
          let result = xai_tool_runtime::Tool::run(&TaskTool, test_ctx(shared), input)
              .await
              .unwrap();
-@@ -2991,6 +3073,76 @@ mod tests {
+@@ -2982,6 +3064,76 @@ mod tests {
          }
      }
  

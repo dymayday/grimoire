@@ -49,7 +49,6 @@ TOUCHED_FILES=(
   "crates/codegen/xai-grok-shell/src/session/workflow/manager.rs"
   "crates/codegen/xai-grok-shell/src/session/workflow/notify.rs"
   "crates/codegen/xai-grok-shell/src/session/workflow/tracker.rs"
-  "crates/codegen/xai-grok-shell/src/upload/memory_tests.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/session_notification.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/mod.rs"
   "crates/codegen/xai-grok-pager/src/app/acp_handler/tests/subagents.rs"

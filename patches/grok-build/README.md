@@ -20,8 +20,8 @@ Source of truth for local grok-build patches. grok-build keeps
 `xai-grok-pager` in release, then restores the grok-build tree.
 
 Refreshed against grok-build HEAD
-`75810042ca2762aa0b0fa17864f3f68823ccbea5`
-(`SOURCE_REV` `eb4a894da8fb7bcd8d8f398a9d909a7868a4fcf1`).
+`37949780c144e37df692e3d669051a21fec24f20`
+(`SOURCE_REV` `c4ea71cfdbcdb21e32e41bc25a0043d7d4836714`).
 
 ## Install
 
