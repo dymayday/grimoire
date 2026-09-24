@@ -23,6 +23,11 @@ Refreshed against grok-build HEAD
 `f0e3be1100ef5252488e3be8bb0e91cf68d8c305`
 (`SOURCE_REV` `036a5d8348cd744767cd0b08518ab17bf608fa7f`).
 
+Revalidated on 2026-09-24 against the latest `origin/main`, still at
+this revision. The patch applies cleanly and exactly matches the diff
+against upstream. All 39 targeted regression tests and the release build
+passed; the source tree was restored to a clean state.
+
 ## Install
 
 From a grok-build clone:
